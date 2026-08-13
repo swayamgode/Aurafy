@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Menu, Search, User } from "lucide-react";
+import NavigationDrawer from "@/components/NavigationDrawer";
 
 interface AppHeaderProps {
   title?: string;
@@ -15,16 +16,20 @@ export default function AppHeader({
   showSearch = true,
   showProfile = false,
 }: AppHeaderProps) {
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-[#F8F9FA]/90 backdrop-blur-md transition-colors">
-      {/* Menu / Drawer Toggle */}
-      <button
-        type="button"
-        aria-label="Open menu"
-        className="w-10 h-10 rounded-full flex items-center justify-center text-black hover:bg-[#E3E4E6] active:scale-95 transition-all cursor-pointer"
-      >
-        <Menu className="w-6 h-6 stroke-[2]" />
-      </button>
+    <>
+      <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-[#F8F9FA]/90 backdrop-blur-md transition-colors">
+        {/* Menu / Drawer Toggle */}
+        <button
+          type="button"
+          onClick={() => setIsDrawerOpen(true)}
+          aria-label="Open menu"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-black hover:bg-[#E3E4E6] active:scale-95 transition-all cursor-pointer"
+        >
+          <Menu className="w-6 h-6 stroke-[2]" />
+        </button>
 
       {/* Page Title */}
       <h1 className="text-xl font-bold text-black tracking-tight select-none">
@@ -53,6 +58,11 @@ export default function AppHeader({
         )}
         {!showSearch && !showProfile && <div className="w-10 h-10" />}
       </div>
-    </header>
+      </header>
+      <NavigationDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      />
+    </>
   );
 }

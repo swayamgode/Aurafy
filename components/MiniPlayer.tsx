@@ -3,6 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { Play, Pause, SkipBack, SkipForward, Smartphone } from "lucide-react";
+import AudioEqualizer from "@/components/AudioEqualizer";
 import { usePlayer } from "@/lib/PlayerContext";
 
 export default function MiniPlayer() {
@@ -20,7 +21,7 @@ export default function MiniPlayer() {
         onClick={openNowPlaying}
         className="flex items-center space-x-3 flex-1 min-w-0 cursor-pointer group"
       >
-        <div className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 bg-black/40 border border-white/10 group-hover:scale-105 transition-transform">
+        <div className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 bg-black/40 border border-white/10 group-hover:scale-105 transition-transform flex items-center justify-center">
           <Image
             src={currentTrack.thumbnailUrl}
             alt={currentTrack.title}
@@ -30,9 +31,12 @@ export default function MiniPlayer() {
           />
         </div>
         <div className="min-w-0 flex-1 pr-2">
-          <h4 className="text-xs sm:text-sm font-semibold truncate text-white group-hover:text-red-400 transition-colors">
-            {currentTrack.title}
-          </h4>
+          <div className="flex items-center space-x-2">
+            <h4 className="text-xs sm:text-sm font-semibold truncate text-white group-hover:text-red-400 transition-colors">
+              {currentTrack.title}
+            </h4>
+            <AudioEqualizer isPlaying={isPlaying} />
+          </div>
           <p className="text-[11px] text-[#8A8D91] truncate font-medium">
             {currentTrack.artist}
           </p>

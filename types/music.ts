@@ -5,6 +5,7 @@ export interface Track {
   thumbnailUrl: string;
   duration?: number; // duration in seconds
   album?: string;
+  audioUrl?: string;
 }
 
 export interface Artist {

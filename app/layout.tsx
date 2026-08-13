@@ -8,6 +8,10 @@ import MiniPlayer from "@/components/MiniPlayer";
 import NowPlayingModal from "@/components/NowPlayingModal";
 import LockScreenPlayer from "@/components/LockScreenPlayer";
 
+import YouTubeAudioPlayer from "@/components/YouTubeAudioPlayer";
+
+import { ToastProvider } from "@/lib/ToastContext";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -28,18 +32,21 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body className="bg-[#F8F9FA] text-[#111111] antialiased min-h-screen pb-32">
         <ConvexClientProvider>
-          <PlayerProvider>
-            {/* Main Application Container */}
-            <div className="max-w-md mx-auto min-h-screen bg-[#F8F9FA] shadow-xs relative flex flex-col sm:max-w-2xl md:max-w-4xl lg:max-w-6xl">
-              <main className="flex-1 pb-16">{children}</main>
+          <ToastProvider>
+            <PlayerProvider>
+              {/* Main Application Container */}
+              <div className="max-w-md mx-auto min-h-screen bg-[#F8F9FA] shadow-xs relative flex flex-col sm:max-w-2xl md:max-w-4xl lg:max-w-6xl">
+                <main className="flex-1 pb-16">{children}</main>
 
-              {/* Persistent Global Players & Navigation */}
-              <MiniPlayer />
-              <BottomNavigation />
-              <NowPlayingModal />
-              <LockScreenPlayer />
-            </div>
-          </PlayerProvider>
+                {/* Persistent Global Players & Navigation */}
+                <MiniPlayer />
+                <BottomNavigation />
+                <NowPlayingModal />
+                <LockScreenPlayer />
+                <YouTubeAudioPlayer />
+              </div>
+            </PlayerProvider>
+          </ToastProvider>
         </ConvexClientProvider>
       </body>
     </html>

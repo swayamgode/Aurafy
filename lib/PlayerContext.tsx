@@ -17,7 +17,7 @@ interface PlayerContextType {
   isNowPlayingOpen: boolean;
   isLockScreenOpen: boolean;
   isQueueOpen: boolean;
-  
+
   // Actions
   playTrack: (track: Track, newQueue?: Track[]) => void;
   togglePlay: () => void;
@@ -35,6 +35,8 @@ interface PlayerContextType {
   closeNowPlaying: () => void;
   toggleLockScreen: () => void;
   toggleQueueModal: () => void;
+  // YouTube player bridge
+  setYouTubePlayer: (player: any) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -55,6 +57,30 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const playerRef = useRef<any>(null);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const ytPlayerRef = useRef<any>(null); // YouTube IFrame player instance
+
+  // Media Session API integration for OS/hardware controls
+  useEffect(() => {
+    if (typeof window === "undefined" || !("mediaSession" in navigator) || !currentTrack) return;
+
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album || "Aurafy",
+        artwork: [
+          { src: currentTrack.thumbnailUrl, sizes: "512x512", type: "image/jpeg" },
+        ],
+      });
+
+      navigator.mediaSession.setActionHandler("play", () => setIsPlaying(true));
+      navigator.mediaSession.setActionHandler("pause", () => setIsPlaying(false));
+      navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
+      navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
+    } catch (e) {
+      // Fallback
+    }
+  }, [currentTrack]);
 
   // Playback timer simulation for seamless demo & API player fallback
   useEffect(() => {
@@ -146,6 +172,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const seekTo = (seconds: number) => {
     setProgress(seconds);
+    // Also seek in the real YouTube IFrame player
+    try {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+        ytPlayerRef.current.seekTo(seconds, true);
+      }
+    } catch (e) {}
+  };
+
+  const setYouTubePlayer = (player: any) => {
+    ytPlayerRef.current = player;
   };
 
   const setVolume = (val: number) => {
@@ -191,6 +227,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const toggleLockScreen = () => setIsLockScreenOpen((prev) => !prev);
   const toggleQueueModal = () => setIsQueueOpen((prev) => !prev);
 
+
   return (
     <PlayerContext.Provider
       value={{
@@ -222,6 +259,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         closeNowPlaying,
         toggleLockScreen,
         toggleQueueModal,
+        setYouTubePlayer,
       }}
     >
       {children}

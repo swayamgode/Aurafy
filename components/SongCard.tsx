@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Play, Pause, Heart, MoreVertical, Trash2 } from "lucide-react";
 import { Track } from "@/types/music";
 import { usePlayer } from "@/lib/PlayerContext";
+import { useToast } from "@/lib/ToastContext";
 
 interface SongCardProps {
   track: Track;
@@ -19,7 +20,8 @@ export default function SongCard({
   onRemove,
   isFavoritedInitial = false,
 }: SongCardProps) {
-  const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
+  const { currentTrack, isPlaying, playTrack, togglePlay, addToQueue } = usePlayer();
+  const { showToast } = useToast();
   const [isFavorited, setIsFavorited] = useState(isFavoritedInitial || variant === "favorite");
 
   const isCurrent = currentTrack?.youtubeId === track.youtubeId;
@@ -34,7 +36,15 @@ export default function SongCard({
 
   const handleHeartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsFavorited((prev) => !prev);
+    setIsFavorited((prev) => {
+      const nextState = !prev;
+      if (nextState) {
+        showToast(`Saved "${track.title}" to Favourites`, "favorite");
+      } else {
+        showToast(`Removed "${track.title}" from Favourites`, "info");
+      }
+      return nextState;
+    });
   };
 
   const formatDuration = (seconds?: number) => {
@@ -153,9 +163,13 @@ export default function SongCard({
         )}
 
         <button
-          onClick={(e) => e.stopPropagation()}
-          aria-label="More options"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[#5F6368] hover:bg-[#F1F2F3] transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            addToQueue(track);
+            showToast(`Added "${track.title}" to Queue`, "queue");
+          }}
+          aria-label="Add to queue"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[#5F6368] hover:bg-[#F1F2F3] hover:text-black transition-colors"
         >
           <MoreVertical className="w-4 h-4" />
         </button>
