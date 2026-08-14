@@ -90,24 +90,44 @@ export default function SongActionSheet({
     // Fallback
   }
 
-  // Combined playlist list
-  const allPlaylists: LocalPlaylist[] =
-    convexPlaylists.length > 0
-      ? convexPlaylists.map((p: any) => ({
-          _id: p._id?.toString() || p.id,
-          title: p.title,
-          coverUrl: p.coverUrl,
-          songsCount: p.songsCount ?? 0,
-        }))
-      : DEFAULT_PLAYLISTS;
+  const [localUserPlaylists, setLocalUserPlaylists] = useState<LocalPlaylist[]>([]);
 
-  // Reset view when sheet opens
+  // Sync localStorage custom playlists whenever sheet opens
   useEffect(() => {
     if (isOpen) {
       setView("main");
       setAddedToPlaylistIds(new Set());
+      try {
+        const stored = localStorage.getItem("aurafy_user_playlists");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setLocalUserPlaylists(
+            parsed.map((p: any) => ({
+              _id: p.id || p._id,
+              title: p.title,
+              coverUrl: p.coverUrl,
+              songsCount: p.songsCount ?? p.songs?.length ?? 0,
+            }))
+          );
+        }
+      } catch {}
     }
   }, [isOpen]);
+
+  // Combined playlist list: user playlists + convex playlists + presets
+  const allPlaylists: LocalPlaylist[] = [
+    ...localUserPlaylists,
+    ...(convexPlaylists.length > 0
+      ? convexPlaylists
+          .filter((cp: any) => !localUserPlaylists.some((lp) => lp._id === (cp._id || cp.id)))
+          .map((p: any) => ({
+            _id: p._id?.toString() || p.id,
+            title: p.title,
+            coverUrl: p.coverUrl,
+            songsCount: p.songsCount ?? 0,
+          }))
+      : DEFAULT_PLAYLISTS.filter((dp) => !localUserPlaylists.some((lp) => lp._id === dp._id))),
+  ];
 
   // Close on backdrop click
   const handleOverlayClick = (e: React.MouseEvent) => {

@@ -61,7 +61,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const isPlayingRef = useRef<boolean>(false); // Stable ref for visibilitychange closure
 
 
-  // Media Session API integration for OS/hardware controls
+  // Media Session API integration for OS/hardware controls & lock screen background playback
   useEffect(() => {
     if (typeof window === "undefined" || !("mediaSession" in navigator) || !currentTrack) return;
 
@@ -75,7 +75,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         ],
       });
 
-      // Bridge to real YouTube player so OS controls actually affect audio
+      // Keep OS playback state in sync
+      navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+
+      // Bridge to real audio engine so OS / lock screen hardware controls work
       navigator.mediaSession.setActionHandler("play", () => {
         setIsPlaying(true);
         try { window._aurafyResume?.(); } catch (e) {}
@@ -86,36 +89,60 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       });
       navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
       navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
+
+      // Lock screen scrubber seeking
+      navigator.mediaSession.setActionHandler("seekto", (details) => {
+        if (details.seekTime !== undefined) {
+          seekTo(details.seekTime);
+        }
+      });
+      navigator.mediaSession.setActionHandler("seekforward", (details) => {
+        const offset = details.seekOffset || 10;
+        seekTo(Math.min(progress + offset, duration));
+      });
+      navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+        const offset = details.seekOffset || 10;
+        seekTo(Math.max(progress - offset, 0));
+      });
     } catch (e) {
       // Fallback
     }
-  }, [currentTrack]);
+  }, [currentTrack, isPlaying, duration, progress]);
 
-  // Visibility change — resume audio when screen unlocks
+  // Sync position state on mobile lock screen
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      "mediaSession" in navigator &&
+      "setPositionState" in navigator.mediaSession &&
+      duration > 0
+    ) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(duration, 1),
+          playbackRate: isPlaying ? 1 : 0,
+          position: Math.min(Math.max(progress, 0), duration),
+        });
+      } catch (e) {}
+    }
+  }, [progress, duration, isPlaying]);
+
+  // Visibility change — maintain continuous audio on unlock
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        // Small delay to let browser settle after unlock
         setTimeout(() => {
           try {
             if (isPlayingRef.current) {
               window._aurafyResume?.();
-              // Update media session playback state
               if ("mediaSession" in navigator) {
                 navigator.mediaSession.playbackState = "playing";
               }
             }
           } catch (e) {}
-        }, 300);
-      } else {
-        // Screen locked / tab hidden — mark session as paused for OS
-        try {
-          if ("mediaSession" in navigator) {
-            navigator.mediaSession.playbackState = isPlayingRef.current ? "playing" : "paused";
-          }
-        } catch (e) {}
+        }, 150);
       }
     };
 
@@ -218,10 +245,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const seekTo = (seconds: number) => {
     setProgress(seconds);
-    // Also seek in the real YouTube IFrame player
     try {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
         ytPlayerRef.current.seekTo(seconds, true);
+      }
+      if (window._aurafyAudioRef && !isNaN(seconds)) {
+        window._aurafyAudioRef.currentTime = seconds;
       }
     } catch (e) {}
   };

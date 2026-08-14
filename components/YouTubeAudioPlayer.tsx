@@ -10,8 +10,13 @@ declare global {
     _ytPlayerInstance: any;
     _aurafyResume: () => void;
     _aurafyPause: () => void;
+    _aurafyAudioRef: HTMLAudioElement | null;
   }
 }
+
+// 44-byte silent WAV audio data URI to keep the mobile OS AudioSession alive during screen lock
+const SILENT_AUDIO_CARRIER =
+  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
 export default function YouTubeAudioPlayer() {
   const {
@@ -19,25 +24,26 @@ export default function YouTubeAudioPlayer() {
     isPlaying,
     volume,
     isMuted,
+    progress,
     nextTrack,
     setYouTubePlayer,
   } = usePlayer();
 
-  // Keep ref so bridge closures can access latest isPlaying without stale closure
+  const playerRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const isApiReady = useRef<boolean>(false);
+  const pendingTrack = useRef<string | null>(null);
+
   const isPlayingRef = useRef(isPlaying);
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
-  const playerRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isApiReady = useRef<boolean>(false);
-  const pendingTrack = useRef<string | null>(null);
-
+  // Initialize YouTube IFrame Player
   const initPlayer = useCallback(() => {
     if (!containerRef.current) return;
 
-    // Destroy existing player instance first
     if (playerRef.current) {
       try {
         playerRef.current.destroy();
@@ -60,7 +66,7 @@ export default function YouTubeAudioPlayer() {
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
-          origin: window.location.origin,
+          origin: typeof window !== "undefined" ? window.location.origin : "",
         },
         events: {
           onReady: (event: any) => {
@@ -68,44 +74,46 @@ export default function YouTubeAudioPlayer() {
             if (isPlaying) {
               event.target.playVideo();
             }
-            // Register the player instance globally for seekTo
             if (typeof setYouTubePlayer === "function") {
               setYouTubePlayer(event.target);
             }
             window._ytPlayerInstance = event.target;
 
-            // Global resume/pause bridges for visibilitychange (screen unlock)
+            // Global bridges for phone unlock / background resume
             window._aurafyResume = () => {
               try {
+                if (audioRef.current && audioRef.current.paused) {
+                  audioRef.current.play().catch(() => {});
+                }
                 if (playerRef.current && typeof playerRef.current.playVideo === "function") {
                   playerRef.current.playVideo();
                 }
               } catch (e) {}
             };
+
             window._aurafyPause = () => {
               try {
+                if (audioRef.current && !audioRef.current.paused) {
+                  audioRef.current.pause();
+                }
                 if (playerRef.current && typeof playerRef.current.pauseVideo === "function") {
                   playerRef.current.pauseVideo();
                 }
               } catch (e) {}
             };
 
-            // If a track was queued while player was loading, load it now
             if (pendingTrack.current && pendingTrack.current !== videoId) {
               event.target.loadVideoById(pendingTrack.current);
               pendingTrack.current = null;
             }
           },
           onStateChange: (event: any) => {
-            // YT.PlayerState.ENDED === 0
             if (event.data === 0) {
               nextTrack();
             }
           },
           onError: (event: any) => {
-            console.warn("[YT Player] Error code:", event.data);
-            // Error 150 = video restricted, 101 = not embeddable, 5 = HTML5 error
-            // Auto-skip to next on embed-restricted videos
+            console.warn("[Audio Engine] Player status code:", event.data);
             if ([100, 101, 150].includes(event.data)) {
               setTimeout(nextTrack, 500);
             }
@@ -113,11 +121,11 @@ export default function YouTubeAudioPlayer() {
         },
       });
     } catch (err) {
-      console.warn("[YT Player] Init failed:", err);
+      console.warn("[Audio Engine] Init failed:", err);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load YouTube IFrame API script once
+  // Load YouTube script once
   useEffect(() => {
     if (window.YT && window.YT.Player) {
       isApiReady.current = true;
@@ -125,7 +133,6 @@ export default function YouTubeAudioPlayer() {
       return;
     }
 
-    // Only inject the script if not already present
     if (!document.getElementById("yt-iframe-api")) {
       const tag = document.createElement("script");
       tag.id = "yt-iframe-api";
@@ -139,26 +146,48 @@ export default function YouTubeAudioPlayer() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Manage HTML5 background audio carrier / stream for mobile lock screen
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    window._aurafyAudioRef = audio;
+
+    // Use direct audioUrl if present, otherwise use silent carrier to keep mobile AudioSession awake
+    const targetSrc = currentTrack?.audioUrl || SILENT_AUDIO_CARRIER;
+    if (audio.src !== targetSrc) {
+      audio.src = targetSrc;
+      audio.load();
+    }
+
+    if (isPlaying) {
+      audio.play().catch(() => {});
+    } else {
+      audio.pause();
+    }
+  }, [currentTrack?.audioUrl, currentTrack?.youtubeId, isPlaying]);
+
   // Sync play/pause state
   useEffect(() => {
     const p = playerRef.current;
-    if (!p || typeof p.playVideo !== "function") return;
+    const audio = audioRef.current;
+
     try {
       if (isPlaying) {
-        p.playVideo();
+        if (p && typeof p.playVideo === "function") p.playVideo();
+        if (audio && audio.paused) audio.play().catch(() => {});
       } else {
-        p.pauseVideo();
+        if (p && typeof p.pauseVideo === "function") p.pauseVideo();
+        if (audio && !audio.paused) audio.pause();
       }
     } catch (e) {}
   }, [isPlaying]);
 
-  // Load new track when currentTrack.youtubeId changes
+  // Sync track change
   useEffect(() => {
     if (!currentTrack?.youtubeId) return;
     const p = playerRef.current;
 
     if (!p || typeof p.loadVideoById !== "function") {
-      // Player not ready yet — queue the track ID
       pendingTrack.current = currentTrack.youtubeId;
       return;
     }
@@ -169,21 +198,29 @@ export default function YouTubeAudioPlayer() {
         p.playVideo();
       }
     } catch (e) {
-      console.warn("[YT Player] loadVideoById error:", e);
+      console.warn("[Audio Engine] loadVideoById:", e);
     }
   }, [currentTrack?.youtubeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync volume
+  // Sync volume & mute
   useEffect(() => {
     const p = playerRef.current;
-    if (!p || typeof p.setVolume !== "function") return;
+    const audio = audioRef.current;
+
+    const targetVol = isMuted ? 0 : volume;
     try {
-      p.setVolume(isMuted ? 0 : Math.round(volume * 100));
+      if (p && typeof p.setVolume === "function") {
+        p.setVolume(Math.round(targetVol * 100));
+      }
+      if (audio) {
+        // If playing silent carrier, keep audio element at tiny audible volume so OS treats as active
+        audio.volume = currentTrack?.audioUrl ? targetVol : 0.01;
+        audio.muted = isMuted;
+      }
     } catch (e) {}
-  }, [volume, isMuted]);
+  }, [volume, isMuted, currentTrack?.audioUrl]);
 
   return (
-    // Completely hidden — only audio output matters
     <div
       aria-hidden="true"
       style={{
@@ -197,6 +234,15 @@ export default function YouTubeAudioPlayer() {
         opacity: 0,
       }}
     >
+      {/* HTML5 background audio stream for lock screen persistence */}
+      <audio
+        ref={audioRef}
+        playsInline
+        preload="auto"
+        loop={!currentTrack?.audioUrl}
+        onEnded={nextTrack}
+      />
+      {/* YouTube audio stream controller */}
       <div ref={containerRef} id="youtube-audio-iframe" />
     </div>
   );
