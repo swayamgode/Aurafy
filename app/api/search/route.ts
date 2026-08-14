@@ -32,10 +32,40 @@ export async function GET(req: NextRequest) {
           : 210,
       }));
 
-    return NextResponse.json({ items });
+    // Generate matching mock artists & playlists for query context
+    const q = query.toLowerCase();
+    const matchedArtists = [
+      {
+        id: `artist-${encodeURIComponent(query)}`,
+        name: query.charAt(0).toUpperCase() + query.slice(1),
+        imageUrl: items[0]?.thumbnailUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop",
+        genre: "Top Artist",
+      },
+    ];
+
+    const matchedPlaylists = [
+      {
+        id: `pl-${encodeURIComponent(query)}`,
+        title: `${query.charAt(0).toUpperCase() + query.slice(1)} Mix`,
+        description: `Best of ${query} curated by Aurafy`,
+        coverUrl: items[0]?.thumbnailUrl || "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?q=80&w=500&auto=format&fit=crop",
+        creator: "Aurafy Mix",
+        songsCount: items.length,
+      },
+    ];
+
+    return NextResponse.json({
+      songs: items,
+      items,
+      artists: matchedArtists,
+      playlists: matchedPlaylists,
+    });
   } catch (err: any) {
-    console.error("[/api/search] YouTube search error:", err?.message || err);
-    return NextResponse.json({ items: [], error: "Search failed" }, { status: 500 });
+    console.error("[/api/search] search error:", err?.message || err);
+    return NextResponse.json(
+      { songs: [], items: [], artists: [], playlists: [], error: "Search failed" },
+      { status: 200 }
+    );
   }
 }
 

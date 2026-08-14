@@ -113,14 +113,14 @@ export default function SearchPage() {
             {activeTab === "Songs" && (
               <section className="space-y-2.5">
                 <h3 className="text-xs font-bold text-[#5F6368] uppercase tracking-wider">
-                  Songs ({results.songs.length})
+                  Songs ({(results?.songs || []).length})
                 </h3>
-                {results.songs.length === 0 ? (
+                {(results?.songs || []).length === 0 ? (
                   <div className="py-10 text-center text-sm text-[#8A8D91]">
                     No songs found. Try another search.
                   </div>
                 ) : (
-                  results.songs.map((song, i) => (
+                  (results?.songs || []).map((song, i) => (
                     <SongCard key={`${song.youtubeId}-${i}`} track={song} />
                   ))
                 )}
@@ -132,13 +132,13 @@ export default function SearchPage() {
                 <h3 className="text-xs font-bold text-[#5F6368] uppercase tracking-wider">
                   Artists
                 </h3>
-                {results.artists.length === 0 ? (
+                {(results?.artists || []).length === 0 ? (
                   <div className="py-10 text-center text-sm text-[#8A8D91]">
                     No artists matched for &ldquo;{query}&rdquo;.
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-4">
-                    {results.artists.map((artist) => (
+                    {(results?.artists || []).map((artist) => (
                       <ArtistCard key={artist.id} artist={artist} />
                     ))}
                   </div>
@@ -151,11 +151,17 @@ export default function SearchPage() {
                 <h3 className="text-xs font-bold text-[#5F6368] uppercase tracking-wider">
                   Playlists
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {results.playlists.map((pl) => (
-                    <PlaylistCard key={pl.id} playlist={pl} />
-                  ))}
-                </div>
+                {(results?.playlists || []).length === 0 ? (
+                  <div className="py-10 text-center text-sm text-[#8A8D91]">
+                    No playlists found for &ldquo;{query}&rdquo;.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {(results?.playlists || []).map((pl) => (
+                      <PlaylistCard key={pl.id} playlist={pl} />
+                    ))}
+                  </div>
+                )}
               </section>
             )}
           </div>

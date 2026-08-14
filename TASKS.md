@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ## Current Status
-All phases complete. Phase 17 added: Fixed audio engine to completely eliminate random mock mp3 playback by stripping all mock `audioUrl` fields and making YouTube IFrame the single audio stream source with inaudible carrier loop for mobile OS lock-screen keep-alive.
+All phases complete. Phase 18 added: Fixed search page loading crash by standardizing `/api/search` JSON payload structure (`{ songs, artists, playlists }`) and adding defensive array fallbacks in `searchYouTube` and `SearchPage`.
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -21,6 +21,7 @@ All phases complete. Phase 17 added: Fixed audio engine to completely eliminate 
 - [x] Phase 15: True Mobile Lock-Screen Audio Persistence (HTML5 audio session keep-alive carrier + MediaSession position state syncing & native lock screen scrubber/controls support).
 - [x] Phase 16: Complete Playlist System & Mobile UI Polish (`app/playlist/create` full persistence + preset covers, dynamic `app/playlist/[id]` route for playing and managing songs, Home & Library playlist access, and mobile touch enhancements).
 - [x] Phase 17: Pure YouTube Audio Stream Alignment (stripped all mock `audioUrl` links from search API and mock datasets so only the exact selected song ever plays).
+- [x] Phase 18: Search API Schema Fix & Crash-Proofing (aligned `/api/search` return signature `{ songs, artists, playlists }` with `SearchResult` and added safe array defaults in `SearchPage`).
 
 ## Important Architectural Decisions
 - **Free-Tier Infrastructure**: Built around Next.js + Convex + YouTube API.

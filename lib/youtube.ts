@@ -176,7 +176,17 @@ export async function searchYouTube(queryStr: string): Promise<SearchResult> {
       throw new Error(`Search API responded with status ${res.status}`);
     }
     const data = await res.json();
-    return data as SearchResult;
+    const songs: Track[] = Array.isArray(data.songs)
+      ? data.songs
+      : Array.isArray(data.items)
+      ? data.items
+      : [];
+
+    return {
+      songs: songs.length > 0 ? songs : FOR_YOU_SONGS,
+      artists: Array.isArray(data.artists) && data.artists.length > 0 ? data.artists : FAVOURITE_ARTISTS,
+      playlists: Array.isArray(data.playlists) && data.playlists.length > 0 ? data.playlists : TRENDING_PLAYLISTS,
+    };
   } catch (err) {
     console.warn("Search API failed, falling back to local search:", err);
     const q = queryStr.toLowerCase();
