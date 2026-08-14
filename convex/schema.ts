@@ -59,4 +59,16 @@ export default defineSchema({
     resultsJson: v.string(),
     updatedAt: v.number(),
   }).index("by_query", ["query"]),
+
+  listenLater: defineTable({
+    userId: v.string(),
+    youtubeId: v.string(),
+    title: v.string(),
+    artist: v.string(),
+    thumbnailUrl: v.string(),
+    duration: v.optional(v.number()),
+    addedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_track", ["userId", "youtubeId"]),
 });

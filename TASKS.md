@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ## Current Status
-All phases complete. Real audio playback streaming engine integrated with valid YouTube track IDs and HTML5 audio stream fallback for crystal-clear speaker audio output. Verified with 100% build validation.
+All phases complete. Phase 14 added: SongActionSheet bottom sheet menu for searching and adding songs to playlists, Listen Later playlist support with Convex & local persistence, and complete removal of YouTube branding and mentions across the UI.
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -16,6 +16,8 @@ All phases complete. Real audio playback streaming engine integrated with valid 
 - [x] Phase 10: Interactive Slide-out Navigation Drawer (`components/NavigationDrawer.tsx`) connected to `AppHeader` menu button.
 - [x] Phase 11: Integrated Real Audio Playback Streaming (`components/YouTubeAudioPlayer.tsx` & `lib/youtube.ts`) with valid YouTube IDs and direct audio stream URLs.
 - [x] Phase 12: Production build verification & static site generation validation (`npm run build` static generation verified).
+- [x] Phase 13: Lock screen audio continuity (`visibilitychange` resume + Media Session play/pause bridged to real YouTube player) + full `LockScreenPlayer` UI rebuild (live clock, real date, blurred album art bg, glassmorphism card, swipe-up unlock gesture, click-to-seek progress, animated pulse ring).
+- [x] Phase 14: Add to Playlist & Listen Later (`SongActionSheet` bottom sheet modal with playlist selector + `listenLater` schema and queries + full removal of all YouTube mentions across Search and UI).
 
 ## Important Architectural Decisions
 - **Free-Tier Infrastructure**: Built around Next.js + Convex + YouTube API.

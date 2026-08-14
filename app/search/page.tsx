@@ -16,7 +16,6 @@ export default function SearchPage() {
   const [activeTab, setActiveTab] = useState("Songs");
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isFromYouTube, setIsFromYouTube] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([
     "Lofi Hip Hop",
     "Trending Pop 2024",
@@ -31,7 +30,6 @@ export default function SearchPage() {
     const timer = setTimeout(async () => {
       if (!query.trim()) {
         setResults(null);
-        setIsFromYouTube(false);
         return;
       }
 
@@ -39,12 +37,6 @@ export default function SearchPage() {
       try {
         const res = await searchYouTube(query);
         setResults(res);
-
-        // Detect if results came from real YouTube search (will have ytimg thumbnails)
-        const fromYT = res.songs.some(
-          (s) => s.thumbnailUrl?.includes("ytimg.com") || s.thumbnailUrl?.includes("yt3")
-        );
-        setIsFromYouTube(fromYT);
 
         // Add to recent searches
         setRecentSearches((prev) => {
@@ -74,7 +66,7 @@ export default function SearchPage() {
         <SearchBar
           value={query}
           onChange={setQuery}
-          placeholder="Search YouTube for songs, artists..."
+          placeholder="Search songs, artists, albums..."
           onClear={() => {
             setQuery("");
             setResults(null);
@@ -102,26 +94,19 @@ export default function SearchPage() {
               <Loader2 className="w-10 h-10 animate-spin text-[#D7192F]" />
               <PlayCircle className="w-4 h-4 absolute text-[#D7192F]" />
             </div>
-            <span className="text-sm font-semibold text-[#5F6368]">Searching YouTube...</span>
+            <span className="text-sm font-semibold text-[#5F6368]">Searching music...</span>
           </div>
         )}
 
         {/* Search Results */}
         {!loading && results && query.trim().length > 0 && (
           <div className="space-y-5">
-            {/* Source Badge */}
+            {/* Header info */}
             <div className="flex items-center space-x-2">
-              {isFromYouTube ? (
-                <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-100">
-                  <PlayCircle className="w-3.5 h-3.5 text-[#D7192F]" />
-                  <span className="text-xs font-semibold text-[#D7192F]">Live from YouTube</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-gray-50 border border-gray-200">
-                  <Music2 className="w-3.5 h-3.5 text-[#5F6368]" />
-                  <span className="text-xs font-semibold text-[#5F6368]">Local Results</span>
-                </div>
-              )}
+              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-100">
+                <Music2 className="w-3.5 h-3.5 text-[#D7192F]" />
+                <span className="text-xs font-semibold text-[#D7192F]">Top Matches</span>
+              </div>
               <span className="text-xs text-[#8A8D91]">for &ldquo;{query}&rdquo;</span>
             </div>
 

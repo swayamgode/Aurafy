@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   Play,
@@ -8,13 +8,36 @@ import {
   SkipBack,
   SkipForward,
   Heart,
-  Shuffle,
-  Repeat,
-  Lock,
   ChevronUp,
 } from "lucide-react";
 import { usePlayer } from "@/lib/PlayerContext";
 
+// ─── Live Clock Hook ──────────────────────────────────────────────────────────
+function useLiveClock() {
+  const [time, setTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const hours = time.getHours().toString().padStart(2, "0");
+  const minutes = time.getMinutes().toString().padStart(2, "0");
+  const weekday = time.toLocaleDateString("en-US", { weekday: "long" });
+  const month = time.toLocaleDateString("en-US", { month: "long" });
+  const day = time.getDate();
+
+  return { clock: `${hours}:${minutes}`, dateStr: `${weekday}, ${month} ${day}` };
+}
+
+// ─── Format seconds → m:ss ────────────────────────────────────────────────────
+function formatTime(secs: number) {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s < 10 ? "0" : ""}${s}`;
+}
+
+// ─── LockScreenPlayer ─────────────────────────────────────────────────────────
 export default function LockScreenPlayer() {
   const {
     currentTrack,
@@ -29,120 +52,251 @@ export default function LockScreenPlayer() {
     seekTo,
   } = usePlayer();
 
+  const { clock, dateStr } = useLiveClock();
   const [isFav, setIsFav] = useState(false);
+
+  // Swipe-up-to-unlock gesture
+  const touchStartY = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const deltaY = touchStartY.current - e.changedTouches[0].clientY;
+    // Swipe up > 60px → unlock
+    if (deltaY > 60) {
+      toggleLockScreen();
+    }
+    touchStartY.current = null;
+  };
 
   if (!isLockScreenOpen || !currentTrack) return null;
 
-  const formatTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remainder = Math.floor(secs % 60);
-    return `${mins}:${remainder < 10 ? "0" : ""}${remainder}`;
-  };
+  const progressPct = duration > 0 ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#111111] text-white flex flex-col justify-between p-6 overflow-y-auto animate-in fade-in duration-300">
-      {/* Clock & Date Header */}
-      <div className="text-center pt-8">
-        <h1 className="text-5xl font-extrabold tracking-tight text-white/95">
-          03:48
-        </h1>
-        <p className="text-xs font-bold tracking-widest text-[#8A8D91] uppercase mt-2">
-          MONDAY, JUNE 12
+    <div
+      ref={containerRef}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="fixed inset-0 z-[60] flex flex-col select-none overflow-hidden"
+      style={{ touchAction: "none" }}
+    >
+      {/* ── Blurred album art background ── */}
+      <div className="absolute inset-0 -z-10">
+        <Image
+          src={currentTrack.thumbnailUrl}
+          alt="background"
+          fill
+          sizes="100vw"
+          priority
+          className="object-cover scale-110"
+          style={{ filter: "blur(40px) saturate(1.6) brightness(0.45)" }}
+        />
+        {/* Dark gradient overlay for legibility */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0.65) 100%)",
+          }}
+        />
+      </div>
+
+      {/* ── Safe area top spacer ── */}
+      <div className="pt-safe-top pt-8" />
+
+      {/* ── Clock & Date ── */}
+      <div className="text-center px-6 mt-4">
+        <div
+          className="text-7xl font-black text-white tracking-tighter leading-none"
+          style={{ textShadow: "0 2px 24px rgba(0,0,0,0.6)" }}
+        >
+          {clock}
+        </div>
+        <p className="text-sm font-semibold tracking-[0.18em] text-white/70 uppercase mt-2">
+          {dateStr}
         </p>
       </div>
 
-      {/* Center Artwork & Info Card */}
-      <div className="flex-1 flex flex-col items-center justify-center max-w-sm mx-auto w-full my-6">
-        <div className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/10 mb-6 group">
+      {/* ── Album Art ── */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-5">
+        <div
+          className="relative rounded-3xl overflow-hidden shadow-2xl"
+          style={{
+            width: "min(72vw, 280px)",
+            height: "min(72vw, 280px)",
+            boxShadow: isPlaying
+              ? "0 0 0 4px rgba(215,25,47,0.35), 0 24px 64px rgba(0,0,0,0.7)"
+              : "0 24px 64px rgba(0,0,0,0.7)",
+            transition: "box-shadow 0.5s ease",
+          }}
+        >
           <Image
             src={currentTrack.thumbnailUrl}
             alt={currentTrack.title}
             fill
-            sizes="300px"
+            sizes="280px"
             priority
             className="object-cover"
+            style={{
+              transform: isPlaying ? "scale(1.04)" : "scale(1)",
+              transition: "transform 0.6s ease",
+            }}
           />
+          {/* Subtle playing pulse ring */}
+          {isPlaying && (
+            <div
+              className="absolute inset-0 rounded-3xl border-2 border-white/20 animate-pulse"
+              style={{ animationDuration: "2s" }}
+            />
+          )}
         </div>
 
-        {/* Title & Artist & Favorite */}
-        <div className="w-full bg-[#2D2D2D]/90 backdrop-blur-md p-5 rounded-3xl border border-white/10 shadow-xl">
-          <div className="flex items-center justify-between mb-4">
-            <div className="min-w-0 pr-3">
-              <h3 className="text-lg font-bold text-white truncate">
-                {currentTrack.title}
-              </h3>
-              <p className="text-xs text-[#8A8D91] font-semibold truncate mt-0.5">
-                {currentTrack.artist}
-              </p>
-            </div>
-            <button
-              onClick={() => setIsFav((p) => !p)}
-              className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
-            >
-              <Heart
-                className={`w-5 h-5 ${
-                  isFav ? "fill-[#D7192F] text-[#D7192F]" : "text-white/70"
-                }`}
-              />
-            </button>
-          </div>
+        {/* ── Song Info ── */}
+        <div className="w-full max-w-xs text-center">
+          <h2
+            className="text-xl font-extrabold text-white truncate leading-tight"
+            style={{ textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}
+          >
+            {currentTrack.title}
+          </h2>
+          <p className="text-sm font-semibold text-white/60 truncate mt-1">
+            {currentTrack.artist}
+          </p>
+        </div>
 
-          {/* Progress Slider */}
-          <div className="mb-4">
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              value={progress}
-              onChange={(e) => seekTo(Number(e.target.value))}
-              className="w-full accent-[#D7192F] h-1 bg-white/20 rounded-lg cursor-pointer"
-            />
-            <div className="flex justify-between text-[11px] text-[#8A8D91] font-semibold mt-1.5">
+        {/* ── Glass Controls Card ── */}
+        <div
+          className="w-full max-w-xs rounded-3xl px-5 py-4"
+          style={{
+            background: "rgba(255,255,255,0.10)",
+            backdropFilter: "blur(24px) saturate(1.8)",
+            WebkitBackdropFilter: "blur(24px) saturate(1.8)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+          }}
+        >
+          {/* Progress bar */}
+          <div className="mb-3">
+            <div
+              className="relative w-full h-1 rounded-full overflow-hidden cursor-pointer"
+              style={{ background: "rgba(255,255,255,0.20)" }}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pct = (e.clientX - rect.left) / rect.width;
+                seekTo(pct * duration);
+              }}
+            >
+              <div
+                className="absolute left-0 top-0 h-full rounded-full"
+                style={{
+                  width: `${progressPct}%`,
+                  background: "linear-gradient(90deg, #D7192F, #ff5f6d)",
+                  transition: "width 0.8s linear",
+                }}
+              />
+              {/* Draggable thumb */}
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-md"
+                style={{
+                  left: `calc(${progressPct}% - 6px)`,
+                  transition: "left 0.8s linear",
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] font-semibold text-white/50 mt-1.5">
               <span>{formatTime(progress)}</span>
               <span>{formatTime(duration)}</span>
             </div>
           </div>
 
-          {/* Playback Controls */}
-          <div className="flex items-center justify-around">
+          {/* Playback controls row */}
+          <div className="flex items-center justify-between">
+            {/* Favorite */}
+            <button
+              onClick={() => setIsFav((p) => !p)}
+              aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
+              className="w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            >
+              <Heart
+                className={`w-5 h-5 transition-colors ${
+                  isFav ? "fill-[#D7192F] text-[#D7192F]" : "text-white/60"
+                }`}
+              />
+            </button>
+
+            {/* Prev */}
             <button
               onClick={prevTrack}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10"
+              aria-label="Previous track"
+              className="w-11 h-11 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
+              style={{ background: "rgba(255,255,255,0.08)" }}
             >
               <SkipBack className="w-5 h-5 fill-white" />
             </button>
+
+            {/* Play / Pause — main CTA */}
             <button
               onClick={togglePlay}
-              className="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+              aria-label={isPlaying ? "Pause" : "Play"}
+              className="w-16 h-16 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+              style={{
+                background: "linear-gradient(135deg, #D7192F 0%, #ff5f6d 100%)",
+                boxShadow: "0 6px 24px rgba(215,25,47,0.55)",
+              }}
             >
               {isPlaying ? (
-                <Pause className="w-6 h-6 fill-black" />
+                <Pause className="w-7 h-7 fill-white text-white" />
               ) : (
-                <Play className="w-6 h-6 fill-black ml-0.5" />
+                <Play className="w-7 h-7 fill-white text-white ml-0.5" />
               )}
             </button>
+
+            {/* Next */}
             <button
               onClick={nextTrack}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white/10"
+              aria-label="Next track"
+              className="w-11 h-11 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
+              style={{ background: "rgba(255,255,255,0.08)" }}
             >
               <SkipForward className="w-5 h-5 fill-white" />
             </button>
+
+            {/* Placeholder spacer to balance favorite button */}
+            <div className="w-10 h-10" />
           </div>
         </div>
       </div>
 
-      {/* Unlock Footer Button */}
-      <div className="text-center pb-4">
+      {/* ── Swipe-up to unlock footer ── */}
+      <div className="pb-safe-bottom pb-8 text-center">
         <button
           onClick={toggleLockScreen}
-          className="inline-flex flex-col items-center justify-center text-xs font-semibold text-[#8A8D91] hover:text-white transition-colors cursor-pointer group"
+          aria-label="Unlock"
+          className="inline-flex flex-col items-center gap-1 text-white/50 hover:text-white/80 transition-colors cursor-pointer"
         >
-          <ChevronUp className="w-5 h-5 animate-bounce text-white/80" />
-          <span className="tracking-widest text-[10px] uppercase">
-            SWIPE UP TO UNLOCK
+          <ChevronUp
+            className="w-6 h-6"
+            style={{ animation: "lockBounce 1.8s ease-in-out infinite" }}
+          />
+          <span className="text-[10px] font-bold tracking-[0.2em] uppercase">
+            Swipe up to unlock
           </span>
         </button>
       </div>
+
+      {/* ── Keyframes injected inline ── */}
+      <style>{`
+        @keyframes lockBounce {
+          0%, 100% { transform: translateY(0); opacity: 0.5; }
+          50% { transform: translateY(-6px); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }

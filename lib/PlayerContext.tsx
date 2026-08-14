@@ -58,6 +58,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playerRef = useRef<any>(null);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ytPlayerRef = useRef<any>(null); // YouTube IFrame player instance
+  const isPlayingRef = useRef<boolean>(false); // Stable ref for visibilitychange closure
+
 
   // Media Session API integration for OS/hardware controls
   useEffect(() => {
@@ -73,8 +75,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         ],
       });
 
-      navigator.mediaSession.setActionHandler("play", () => setIsPlaying(true));
-      navigator.mediaSession.setActionHandler("pause", () => setIsPlaying(false));
+      // Bridge to real YouTube player so OS controls actually affect audio
+      navigator.mediaSession.setActionHandler("play", () => {
+        setIsPlaying(true);
+        try { window._aurafyResume?.(); } catch (e) {}
+      });
+      navigator.mediaSession.setActionHandler("pause", () => {
+        setIsPlaying(false);
+        try { window._aurafyPause?.(); } catch (e) {}
+      });
       navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
       navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
     } catch (e) {
@@ -82,8 +91,44 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentTrack]);
 
+  // Visibility change — resume audio when screen unlocks
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // Small delay to let browser settle after unlock
+        setTimeout(() => {
+          try {
+            if (isPlayingRef.current) {
+              window._aurafyResume?.();
+              // Update media session playback state
+              if ("mediaSession" in navigator) {
+                navigator.mediaSession.playbackState = "playing";
+              }
+            }
+          } catch (e) {}
+        }, 300);
+      } else {
+        // Screen locked / tab hidden — mark session as paused for OS
+        try {
+          if ("mediaSession" in navigator) {
+            navigator.mediaSession.playbackState = isPlayingRef.current ? "playing" : "paused";
+          }
+        } catch (e) {}
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
+
   // Playback timer simulation for seamless demo & API player fallback
   useEffect(() => {
+    // Keep ref in sync for visibilitychange closure
+    isPlayingRef.current = isPlaying;
+
     if (isPlaying) {
       progressTimerRef.current = setInterval(() => {
         setProgress((prev) => {
@@ -102,6 +147,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
   }, [isPlaying, duration]);
+
 
   const playTrack = (track: Track, newQueue?: Track[]) => {
     setCurrentTrack(track);

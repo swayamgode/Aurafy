@@ -1,35 +1,32 @@
-const sharp = require("sharp");
-const path = require("path");
-const fs = require("fs");
+const sharp = require('sharp');
+const path = require('path');
 
-const SOURCE = path.join(
-  "C:\\Users\\swaya\\.gemini\\antigravity-ide\\brain\\10abfab2-b4ed-4f13-9e34-d7248e2f6ea7",
-  "aurafy_icon_1786641658485.png"
-);
-const DEST = path.join(__dirname, "public", "icons");
+const sizes = [72, 96, 128, 144, 152, 180, 192, 384, 512];
+const src = path.join(__dirname, 'public', 'icons', 'AURAFY.png');
 
-const SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
-
-async function generate() {
-  if (!fs.existsSync(DEST)) fs.mkdirSync(DEST, { recursive: true });
-
-  for (const size of SIZES) {
-    const out = path.join(DEST, `icon-${size}x${size}.png`);
-    await sharp(SOURCE).resize(size, size).png().toFile(out);
-    console.log(`✓ Generated ${out}`);
-  }
-
-  // Also generate apple-touch-icon (180x180)
-  const apple = path.join(__dirname, "public", "apple-touch-icon.png");
-  await sharp(SOURCE).resize(180, 180).png().toFile(apple);
-  console.log(`✓ Generated apple-touch-icon.png`);
-
-  // favicon.ico equivalent (32x32)
-  const favicon = path.join(__dirname, "public", "favicon-32x32.png");
-  await sharp(SOURCE).resize(32, 32).png().toFile(favicon);
-  console.log(`✓ Generated favicon-32x32.png`);
-
-  console.log("\n✅ All PWA icons generated successfully!");
-}
-
-generate().catch(console.error);
+Promise.all(
+  sizes.map((s) =>
+    sharp(src)
+      .resize(s, s, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .png()
+      .toFile(path.join(__dirname, 'public', 'icons', `icon-${s}x${s}.png`))
+      .then(() => console.log(`icon-${s}x${s}.png done`))
+  )
+)
+  .then(() => {
+    // Also generate favicon-32x32 and apple-touch-icon
+    return Promise.all([
+      sharp(src)
+        .resize(32, 32, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+        .png()
+        .toFile(path.join(__dirname, 'public', 'favicon-32x32.png'))
+        .then(() => console.log('favicon-32x32.png done')),
+      sharp(src)
+        .resize(180, 180, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+        .png()
+        .toFile(path.join(__dirname, 'public', 'apple-touch-icon.png'))
+        .then(() => console.log('apple-touch-icon.png done')),
+    ]);
+  })
+  .then(() => console.log('\nAll icons generated from AURAFY.png!'))
+  .catch((e) => console.error('Error:', e));

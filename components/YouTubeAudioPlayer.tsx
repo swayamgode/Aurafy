@@ -8,6 +8,8 @@ declare global {
     YT: any;
     onYouTubeIframeAPIReady: () => void;
     _ytPlayerInstance: any;
+    _aurafyResume: () => void;
+    _aurafyPause: () => void;
   }
 }
 
@@ -20,6 +22,12 @@ export default function YouTubeAudioPlayer() {
     nextTrack,
     setYouTubePlayer,
   } = usePlayer();
+
+  // Keep ref so bridge closures can access latest isPlaying without stale closure
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +73,22 @@ export default function YouTubeAudioPlayer() {
               setYouTubePlayer(event.target);
             }
             window._ytPlayerInstance = event.target;
+
+            // Global resume/pause bridges for visibilitychange (screen unlock)
+            window._aurafyResume = () => {
+              try {
+                if (playerRef.current && typeof playerRef.current.playVideo === "function") {
+                  playerRef.current.playVideo();
+                }
+              } catch (e) {}
+            };
+            window._aurafyPause = () => {
+              try {
+                if (playerRef.current && typeof playerRef.current.pauseVideo === "function") {
+                  playerRef.current.pauseVideo();
+                }
+              } catch (e) {}
+            };
 
             // If a track was queued while player was loading, load it now
             if (pendingTrack.current && pendingTrack.current !== videoId) {
