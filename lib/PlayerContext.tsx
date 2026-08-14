@@ -249,9 +249,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
         ytPlayerRef.current.seekTo(seconds, true);
       }
-      if (window._aurafyAudioRef && !isNaN(seconds)) {
-        window._aurafyAudioRef.currentTime = seconds;
-      }
     } catch (e) {}
   };
 

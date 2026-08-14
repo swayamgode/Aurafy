@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ## Current Status
-All phases complete. Phase 16 added: Fixed playlist creation with full Convex & localStorage persistence, added dynamic playlist details route (`app/playlist/[id]/page.tsx`), added playlist access tabs/cards across Home, Library, and SongActionSheet, and upgraded the entire mobile phone UI.
+All phases complete. Phase 17 added: Fixed audio engine to completely eliminate random mock mp3 playback by stripping all mock `audioUrl` fields and making YouTube IFrame the single audio stream source with inaudible carrier loop for mobile OS lock-screen keep-alive.
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -20,6 +20,7 @@ All phases complete. Phase 16 added: Fixed playlist creation with full Convex & 
 - [x] Phase 14: Add to Playlist & Listen Later (`SongActionSheet` bottom sheet modal with playlist selector + `listenLater` schema and queries + full removal of all YouTube mentions across Search and UI).
 - [x] Phase 15: True Mobile Lock-Screen Audio Persistence (HTML5 audio session keep-alive carrier + MediaSession position state syncing & native lock screen scrubber/controls support).
 - [x] Phase 16: Complete Playlist System & Mobile UI Polish (`app/playlist/create` full persistence + preset covers, dynamic `app/playlist/[id]` route for playing and managing songs, Home & Library playlist access, and mobile touch enhancements).
+- [x] Phase 17: Pure YouTube Audio Stream Alignment (stripped all mock `audioUrl` links from search API and mock datasets so only the exact selected song ever plays).
 
 ## Important Architectural Decisions
 - **Free-Tier Infrastructure**: Built around Next.js + Convex + YouTube API.

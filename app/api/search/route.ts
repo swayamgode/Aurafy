@@ -30,8 +30,6 @@ export async function GET(req: NextRequest) {
         duration: item.length?.simpleText
           ? parseDuration(item.length.simpleText)
           : 210,
-        audioUrl:
-          "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
       }));
 
     return NextResponse.json({ items });

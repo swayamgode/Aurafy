@@ -10,7 +10,6 @@ declare global {
     _ytPlayerInstance: any;
     _aurafyResume: () => void;
     _aurafyPause: () => void;
-    _aurafyAudioRef: HTMLAudioElement | null;
   }
 }
 
@@ -24,21 +23,15 @@ export default function YouTubeAudioPlayer() {
     isPlaying,
     volume,
     isMuted,
-    progress,
     nextTrack,
     setYouTubePlayer,
   } = usePlayer();
 
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const silentAudioRef = useRef<HTMLAudioElement>(null);
   const isApiReady = useRef<boolean>(false);
   const pendingTrack = useRef<string | null>(null);
-
-  const isPlayingRef = useRef(isPlaying);
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
 
   // Initialize YouTube IFrame Player
   const initPlayer = useCallback(() => {
@@ -82,8 +75,8 @@ export default function YouTubeAudioPlayer() {
             // Global bridges for phone unlock / background resume
             window._aurafyResume = () => {
               try {
-                if (audioRef.current && audioRef.current.paused) {
-                  audioRef.current.play().catch(() => {});
+                if (silentAudioRef.current && silentAudioRef.current.paused) {
+                  silentAudioRef.current.play().catch(() => {});
                 }
                 if (playerRef.current && typeof playerRef.current.playVideo === "function") {
                   playerRef.current.playVideo();
@@ -93,8 +86,8 @@ export default function YouTubeAudioPlayer() {
 
             window._aurafyPause = () => {
               try {
-                if (audioRef.current && !audioRef.current.paused) {
-                  audioRef.current.pause();
+                if (silentAudioRef.current && !silentAudioRef.current.paused) {
+                  silentAudioRef.current.pause();
                 }
                 if (playerRef.current && typeof playerRef.current.pauseVideo === "function") {
                   playerRef.current.pauseVideo();
@@ -146,43 +139,32 @@ export default function YouTubeAudioPlayer() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Manage HTML5 background audio carrier / stream for mobile lock screen
+  // Keep mobile OS AudioSession alive using inaudible silent audio carrier
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    window._aurafyAudioRef = audio;
-
-    // Use direct audioUrl if present, otherwise use silent carrier to keep mobile AudioSession awake
-    const targetSrc = currentTrack?.audioUrl || SILENT_AUDIO_CARRIER;
-    if (audio.src !== targetSrc) {
-      audio.src = targetSrc;
-      audio.load();
-    }
+    const silentAudio = silentAudioRef.current;
+    if (!silentAudio) return;
 
     if (isPlaying) {
-      audio.play().catch(() => {});
+      silentAudio.volume = 0.001;
+      silentAudio.play().catch(() => {});
     } else {
-      audio.pause();
+      silentAudio.pause();
     }
-  }, [currentTrack?.audioUrl, currentTrack?.youtubeId, isPlaying]);
+  }, [isPlaying]);
 
-  // Sync play/pause state
+  // Sync play/pause state to the actual YouTube player
   useEffect(() => {
     const p = playerRef.current;
-    const audio = audioRef.current;
-
     try {
       if (isPlaying) {
         if (p && typeof p.playVideo === "function") p.playVideo();
-        if (audio && audio.paused) audio.play().catch(() => {});
       } else {
         if (p && typeof p.pauseVideo === "function") p.pauseVideo();
-        if (audio && !audio.paused) audio.pause();
       }
     } catch (e) {}
   }, [isPlaying]);
 
-  // Sync track change
+  // Sync track change - load the exact YouTube ID of the selected song
   useEffect(() => {
     if (!currentTrack?.youtubeId) return;
     const p = playerRef.current;
@@ -202,23 +184,16 @@ export default function YouTubeAudioPlayer() {
     }
   }, [currentTrack?.youtubeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync volume & mute
+  // Sync volume & mute to the actual YouTube player
   useEffect(() => {
     const p = playerRef.current;
-    const audio = audioRef.current;
-
     const targetVol = isMuted ? 0 : volume;
     try {
       if (p && typeof p.setVolume === "function") {
         p.setVolume(Math.round(targetVol * 100));
       }
-      if (audio) {
-        // If playing silent carrier, keep audio element at tiny audible volume so OS treats as active
-        audio.volume = currentTrack?.audioUrl ? targetVol : 0.01;
-        audio.muted = isMuted;
-      }
     } catch (e) {}
-  }, [volume, isMuted, currentTrack?.audioUrl]);
+  }, [volume, isMuted]);
 
   return (
     <div
@@ -234,15 +209,15 @@ export default function YouTubeAudioPlayer() {
         opacity: 0,
       }}
     >
-      {/* HTML5 background audio stream for lock screen persistence */}
+      {/* Silent inaudible carrier solely to maintain mobile OS AudioSession */}
       <audio
-        ref={audioRef}
+        ref={silentAudioRef}
+        src={SILENT_AUDIO_CARRIER}
         playsInline
         preload="auto"
-        loop={!currentTrack?.audioUrl}
-        onEnded={nextTrack}
+        loop
       />
-      {/* YouTube audio stream controller */}
+      {/* The REAL audio player output from YouTube */}
       <div ref={containerRef} id="youtube-audio-iframe" />
     </div>
   );
