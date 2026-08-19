@@ -42,7 +42,7 @@ export default function YouTubeAudioPlayer() {
 
   // Initialize YouTube IFrame Player for online streaming
   const initPlayer = useCallback(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !window.YT || !window.YT.Player) return;
 
     if (playerRef.current) {
       try {
@@ -55,8 +55,8 @@ export default function YouTubeAudioPlayer() {
 
     try {
       playerRef.current = new window.YT.Player(containerRef.current, {
-        height: "1",
-        width: "1",
+        height: "200",
+        width: "200",
         videoId,
         playerVars: {
           autoplay: isPlaying && !isLocalOfflineAudio ? 1 : 0,
@@ -66,67 +66,75 @@ export default function YouTubeAudioPlayer() {
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
-          origin: typeof window !== "undefined" ? window.location.origin : "",
+          enablejsapi: 1,
         },
         events: {
           onReady: (event: any) => {
-            event.target.setVolume(isMuted ? 0 : Math.round(volume * 100));
-            if (isPlaying && !isLocalOfflineAudio) {
-              event.target.playVideo();
-            }
-            if (typeof setYouTubePlayer === "function") {
-              setYouTubePlayer(event.target);
-            }
-            window._ytPlayerInstance = event.target;
+            try {
+              event.target.setVolume(isMuted ? 0 : Math.round(volume * 100));
+              if (isPlaying && !isLocalOfflineAudio) {
+                event.target.playVideo();
+              }
+              if (typeof setYouTubePlayer === "function") {
+                setYouTubePlayer(event.target);
+              }
+              window._ytPlayerInstance = event.target;
 
-            // Global bridges for phone unlock / background resume
-            window._aurafyResume = () => {
-              try {
-                if (silentAudioRef.current && silentAudioRef.current.paused) {
-                  silentAudioRef.current.play().catch(() => {});
-                }
-                if (offlineAudioRef.current && offlineAudioRef.current.src) {
-                  offlineAudioRef.current.play().catch(() => {});
-                } else if (
-                  playerRef.current &&
-                  typeof playerRef.current.playVideo === "function"
-                ) {
-                  playerRef.current.playVideo();
-                }
-              } catch (e) {}
-            };
+              // Global bridges for phone unlock / background resume
+              window._aurafyResume = () => {
+                try {
+                  if (silentAudioRef.current && silentAudioRef.current.paused) {
+                    silentAudioRef.current.play().catch(() => {});
+                  }
+                  if (offlineAudioRef.current && offlineAudioRef.current.src) {
+                    offlineAudioRef.current.play().catch(() => {});
+                  } else if (
+                    playerRef.current &&
+                    typeof playerRef.current.playVideo === "function"
+                  ) {
+                    playerRef.current.playVideo();
+                  }
+                } catch (e) {}
+              };
 
-            window._aurafyPause = () => {
-              try {
-                if (silentAudioRef.current && !silentAudioRef.current.paused) {
-                  silentAudioRef.current.pause();
-                }
-                if (offlineAudioRef.current) {
-                  offlineAudioRef.current.pause();
-                }
-                if (
-                  playerRef.current &&
-                  typeof playerRef.current.pauseVideo === "function"
-                ) {
-                  playerRef.current.pauseVideo();
-                }
-              } catch (e) {}
-            };
+              window._aurafyPause = () => {
+                try {
+                  if (silentAudioRef.current && !silentAudioRef.current.paused) {
+                    silentAudioRef.current.pause();
+                  }
+                  if (offlineAudioRef.current) {
+                    offlineAudioRef.current.pause();
+                  }
+                  if (
+                    playerRef.current &&
+                    typeof playerRef.current.pauseVideo === "function"
+                  ) {
+                    playerRef.current.pauseVideo();
+                  }
+                } catch (e) {}
+              };
 
-            if (pendingTrack.current && pendingTrack.current !== videoId) {
-              event.target.loadVideoById(pendingTrack.current);
-              pendingTrack.current = null;
+              if (pendingTrack.current) {
+                event.target.loadVideoById(pendingTrack.current);
+                if (isPlaying) {
+                  event.target.playVideo();
+                }
+                pendingTrack.current = null;
+              }
+            } catch (e) {
+              console.warn("[Audio Engine] onReady error:", e);
             }
           },
           onStateChange: (event: any) => {
             if (event.data === 0) {
+              // Video ended -> next track
               nextTrack();
             }
           },
           onError: (event: any) => {
-            console.warn("[Audio Engine] YouTube player status code:", event.data);
+            console.warn("[Audio Engine] YouTube error code:", event.data);
             if ([100, 101, 150].includes(event.data)) {
-              setTimeout(nextTrack, 500);
+              setTimeout(nextTrack, 800);
             }
           },
         },
@@ -157,7 +165,7 @@ export default function YouTubeAudioPlayer() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep mobile OS AudioSession alive using inaudible silent audio carrier
+  // Keep mobile OS AudioSession alive using silent audio carrier
   useEffect(() => {
     const silentAudio = silentAudioRef.current;
     if (!silentAudio) return;
@@ -222,12 +230,12 @@ export default function YouTubeAudioPlayer() {
       }
 
       try {
-        p.loadVideoById({ videoId: currentTrack.youtubeId, startSeconds: 0 });
+        p.loadVideoById(currentTrack.youtubeId);
         if (isPlaying) {
           p.playVideo();
         }
       } catch (e) {
-        console.warn("[Audio Engine] loadVideoById:", e);
+        console.warn("[Audio Engine] loadVideoById error:", e);
       }
     }
   }, [currentTrack?.youtubeId, isLocalOfflineAudio]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -253,16 +261,15 @@ export default function YouTubeAudioPlayer() {
       aria-hidden="true"
       style={{
         position: "fixed",
-        bottom: 0,
-        right: 0,
-        width: 1,
-        height: 1,
-        overflow: "hidden",
+        top: -9999,
+        left: -9999,
+        width: 200,
+        height: 200,
         pointerEvents: "none",
-        opacity: 0,
+        zIndex: -1,
       }}
     >
-      {/* Silent inaudible carrier to maintain mobile OS AudioSession during screen lock */}
+      {/* Silent carrier to maintain mobile OS AudioSession during screen lock */}
       <audio
         ref={silentAudioRef}
         src={SILENT_AUDIO_CARRIER}
@@ -279,7 +286,7 @@ export default function YouTubeAudioPlayer() {
         onEnded={() => nextTrack()}
       />
 
-      {/* Online YouTube IFrame Audio stream */}
+      {/* Online YouTube Audio stream container */}
       <div ref={containerRef} id="youtube-audio-iframe" />
     </div>
   );
