@@ -13,10 +13,10 @@ import {
   Sparkles,
   Download,
   Lock,
-  Flame,
   ChevronRight,
 } from "lucide-react";
 import { usePlayer } from "@/lib/PlayerContext";
+import { useAuth } from "@/lib/AuthContext";
 
 interface NavigationDrawerProps {
   isOpen: boolean;
@@ -25,6 +25,7 @@ interface NavigationDrawerProps {
 
 export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerProps) {
   const { toggleLockScreen } = usePlayer();
+  const { user } = useAuth();
 
   if (!isOpen) return null;
 
@@ -69,23 +70,33 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
           </div>
 
           {/* User Preview */}
-          <div className="my-6 p-3 bg-white rounded-2xl border border-[#E3E4E6] flex items-center space-x-3 shadow-2xs">
+          <Link
+            href="/profile"
+            onClick={onClose}
+            className="my-6 p-3 bg-white rounded-2xl border border-[#E3E4E6] flex items-center space-x-3 shadow-2xs hover:border-black/30 transition-colors cursor-pointer block"
+          >
             <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border border-black/20 bg-gray-100">
               <Image
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop"
-                alt="Alex Morgan"
+                src={
+                  user?.avatarUrl ||
+                  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop"
+                }
+                alt={user?.name || "User Avatar"}
                 fill
                 sizes="40px"
                 className="object-cover"
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="text-xs font-bold text-black truncate">Alex Morgan</h4>
+              <h4 className="text-xs font-bold text-black truncate">
+                {user?.name || "Music Explorer"}
+              </h4>
               <span className="text-[10px] font-extrabold uppercase text-[#D7192F]">
                 PRO MEMBER
               </span>
             </div>
-          </div>
+            <ChevronRight className="w-4 h-4 text-[#8A8D91]" />
+          </Link>
 
           {/* Navigation Links */}
           <nav aria-label="Sidebar Menu" className="space-y-1">

@@ -160,7 +160,7 @@ export const FOR_YOU_SONGS: Track[] = [
   },
 ];
 
-// YouTube Search — calls internal Next.js API route
+// YouTube Search — calls internal Next.js API route with optional user API key header
 export async function searchYouTube(queryStr: string): Promise<SearchResult> {
   if (!queryStr || queryStr.trim().length === 0) {
     return {
@@ -171,7 +171,17 @@ export async function searchYouTube(queryStr: string): Promise<SearchResult> {
   }
 
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(queryStr)}`);
+    const headers: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const storedKey = localStorage.getItem("aurafy_yt_api_key");
+      if (storedKey && storedKey.trim()) {
+        headers["x-youtube-api-key"] = storedKey.trim();
+      }
+    }
+
+    const res = await fetch(`/api/search?q=${encodeURIComponent(queryStr)}`, {
+      headers,
+    });
     if (!res.ok) {
       throw new Error(`Search API responded with status ${res.status}`);
     }

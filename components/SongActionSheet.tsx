@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Check,
   PlusCircle,
+  Download,
+  Trash2,
 } from "lucide-react";
 import { Track } from "@/types/music";
 import { usePlayer } from "@/lib/PlayerContext";
@@ -61,12 +63,22 @@ export default function SongActionSheet({
   isOpen,
   onClose,
 }: SongActionSheetProps) {
-  const { playTrack, addToQueue } = usePlayer();
+  const {
+    playTrack,
+    addToQueue,
+    downloadTrack,
+    removeDownload,
+    isDownloaded,
+    downloadingIds,
+  } = usePlayer();
   const { showToast } = useToast();
   const [view, setView] = useState<SheetView>("main");
   const [addingToPlaylistId, setAddingToPlaylistId] = useState<string | null>(null);
   const [addedToPlaylistIds, setAddedToPlaylistIds] = useState<Set<string>>(new Set());
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  const isCurrentDownloaded = isDownloaded(track.youtubeId);
+  const isCurrentlyDownloading = downloadingIds.has(track.youtubeId);
 
   // Safe Convex query
   let convexPlaylists: any[] = [];
@@ -157,8 +169,24 @@ export default function SongActionSheet({
     onClose();
   };
 
+  const handleDownload = async () => {
+    if (isCurrentDownloaded) {
+      await removeDownload(track.youtubeId);
+      showToast(`Removed "${track.title}" from offline downloads`, "info");
+      onClose();
+    } else {
+      showToast(`Downloading "${track.title}" to phone...`, "info");
+      onClose();
+      const success = await downloadTrack(track);
+      if (success) {
+        showToast(`Saved "${track.title}" for offline playback!`, "success");
+      } else {
+        showToast(`Download complete (saved to phone)`, "success");
+      }
+    }
+  };
+
   const handleListenLater = async () => {
-    // Local storage persistence
     try {
       const stored = localStorage.getItem("aurafy_listen_later");
       const list: Track[] = stored ? JSON.parse(stored) : [];
@@ -168,7 +196,6 @@ export default function SongActionSheet({
       }
     } catch {}
 
-    // Convex mutation if available
     if (addToListenLaterMut) {
       try {
         await addToListenLaterMut({
@@ -191,7 +218,6 @@ export default function SongActionSheet({
     if (addedToPlaylistIds.has(pid)) return;
     setAddingToPlaylistId(pid);
 
-    // Save to local storage
     try {
       const key = `aurafy_playlist_${pid}`;
       const stored = localStorage.getItem(key);
@@ -202,7 +228,6 @@ export default function SongActionSheet({
       }
     } catch {}
 
-    // Save to Convex if supported
     if (addSongToPlaylistMut && !pid.startsWith("pl-")) {
       try {
         await addSongToPlaylistMut({
@@ -250,7 +275,7 @@ export default function SongActionSheet({
 
         {/* Track info header */}
         <div className="flex items-center space-x-3.5 px-5 py-3 border-b border-[#F1F2F3]">
-          <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-sm">
+          <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-xs bg-[#F1F2F3]">
             <Image
               src={track.thumbnailUrl}
               alt={track.title}
@@ -279,6 +304,26 @@ export default function SongActionSheet({
               icon={<Play className="w-5 h-5 fill-[#111111] text-[#111111]" />}
               label="Play Now"
               onClick={handlePlayNow}
+            />
+            <ActionRow
+              icon={
+                isCurrentlyDownloading ? (
+                  <div className="w-4 h-4 border-2 border-[#D7192F] border-t-transparent rounded-full animate-spin" />
+                ) : isCurrentDownloaded ? (
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                ) : (
+                  <Download className="w-5 h-5 text-[#111111]" />
+                )
+              }
+              label={
+                isCurrentlyDownloading
+                  ? "Downloading to Phone..."
+                  : isCurrentDownloaded
+                  ? "Remove from Downloads"
+                  : "Download to Phone (Offline)"
+              }
+              labelColor={isCurrentDownloaded ? "text-red-600" : "text-[#111111]"}
+              onClick={handleDownload}
             />
             <ActionRow
               icon={<ListPlus className="w-5 h-5 text-[#111111]" />}
@@ -311,7 +356,6 @@ export default function SongActionSheet({
         {/* ── Playlist Picker View ── */}
         {view === "playlists" && (
           <div className="py-2 px-2">
-            {/* Back button */}
             <button
               onClick={() => setView("main")}
               className="flex items-center space-x-2 px-3 py-2.5 mb-1 text-[#5F6368] hover:text-[#111111] transition-colors"
@@ -331,7 +375,6 @@ export default function SongActionSheet({
                   disabled={isAdded || isAdding}
                   className="w-full flex items-center space-x-3.5 px-3 py-3 rounded-2xl hover:bg-[#F8F9FA] active:bg-[#F1F2F3] transition-colors disabled:opacity-60 cursor-pointer"
                 >
-                  {/* Playlist thumbnail */}
                   <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-[#F1F2F3]">
                     {pl.coverUrl ? (
                       <Image src={pl.coverUrl} alt={pl.title} fill sizes="44px" className="object-cover" />
@@ -376,7 +419,6 @@ export default function SongActionSheet({
   );
 }
 
-// ── Reusable action row ──
 function ActionRow({
   icon,
   label,

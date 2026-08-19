@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ## Current Status
-All phases complete. Phase 18 added: Fixed search page loading crash by standardizing `/api/search` JSON payload structure (`{ songs, artists, playlists }`) and adding defensive array fallbacks in `searchYouTube` and `SearchPage`.
+All phases complete. Phase 20 added: Implemented one-time user onboarding/login flow (`/login`), persistent profile tracking in Convex `users` table & `localStorage`, profile customization with avatar selection, and logout session management.
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -22,10 +22,13 @@ All phases complete. Phase 18 added: Fixed search page loading crash by standard
 - [x] Phase 16: Complete Playlist System & Mobile UI Polish (`app/playlist/create` full persistence + preset covers, dynamic `app/playlist/[id]` route for playing and managing songs, Home & Library playlist access, and mobile touch enhancements).
 - [x] Phase 17: Pure YouTube Audio Stream Alignment (stripped all mock `audioUrl` links from search API and mock datasets so only the exact selected song ever plays).
 - [x] Phase 18: Search API Schema Fix & Crash-Proofing (aligned `/api/search` return signature `{ songs, artists, playlists }` with `SearchResult` and added safe array defaults in `SearchPage`).
+- [x] Phase 19: Official YouTube Data API v3 Key Integration & Mobile Offline Song Download Engine (`lib/offlineStorage.ts` IndexedDB audio caching + `/api/download` MP3 stream endpoint + `/api/search` Google YouTube Data v3 API handling with fallback + `PlayerContext` offline playback routing + `FavoritesPage` Downloaded filter pill + `ProfilePage` API key configuration + `SongActionSheet` & `NowPlayingModal` download actions).
+- [x] Phase 20: One-Time User Login & Persistent Profile Tracking (`convex/users.ts` schema operations + `lib/AuthContext.tsx` persistent auth provider + `app/login/page.tsx` editorial onboarding screen with avatar picker + dynamic user identity across `AppHeader`, `NavigationDrawer`, and `ProfilePage` + one-click guest start & logout handling).
 
 ## Important Architectural Decisions
-- **Free-Tier Infrastructure**: Built around Next.js + Convex + YouTube API.
+- **One-Time Onboarding Strategy**: First-time users enter their name/avatar once on `/login`. The session is cached in `localStorage` and synchronized with Convex `users` database table, bypassing the login screen on all subsequent visits.
+- **Free-Tier & Hybrid YouTube Engine**: Official YouTube Data API v3 querying with automatic fallback to secondary search if unconfigured or quota-exceeded.
+- **Offline Phone Storage Architecture**: High-capacity IndexedDB storage for downloaded song audio blobs and metadata + dual-engine audio player (`YouTubeAudioPlayer.tsx`) switching dynamically between online YouTube stream and local HTML5 audio blob.
 - **Design Tokens**: Configured in `globals.css` per `.ai/DESIGN.md` (Off-white `#F8F9FA`, dark charcoal `#2D2D2D`, red accent `#D7192F`, black `#000000`).
-- **YouTube & Real Audio Playback Integration**: Dual YouTube IFrame API controller + HTML5 Audio Stream player synced with `PlayerContext` for real-time audio playback, seeking, volume, and track transition.
-- **Hardware Integration**: Media Session API metadata & hardware key handlers (Play, Pause, Prev, Next).
+- **Hardware & Lock Screen Integration**: Media Session API metadata, lock-screen position syncing, and persistent audio carrier for mobile background playback.
 - **Navigation Drawer**: Persistent overlay menu supporting fast app routing, lock screen toggle, and profile access.

@@ -8,6 +8,8 @@ import { Home, Compass, Heart, User } from "lucide-react";
 export default function BottomNavigation() {
   const pathname = usePathname();
 
+  if (pathname === "/login") return null;
+
   const navItems = [
     { label: "Home", href: "/", icon: Home },
     { label: "Explore", href: "/search", icon: Compass },

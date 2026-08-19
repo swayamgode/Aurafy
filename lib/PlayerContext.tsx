@@ -1,8 +1,21 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { Track, RepeatMode } from "@/types/music";
 import { FOR_YOU_SONGS } from "./youtube";
+import {
+  saveTrackOffline,
+  removeOfflineTrack,
+  getAllOfflineTracks,
+  getOfflineTrack,
+} from "./offlineStorage";
 
 interface PlayerContextType {
   currentTrack: Track | null;
@@ -17,6 +30,9 @@ interface PlayerContextType {
   isNowPlayingOpen: boolean;
   isLockScreenOpen: boolean;
   isQueueOpen: boolean;
+  isOfflineMode: boolean;
+  downloadedIds: Set<string>;
+  downloadingIds: Set<string>;
 
   // Actions
   playTrack: (track: Track, newQueue?: Track[]) => void;
@@ -35,7 +51,10 @@ interface PlayerContextType {
   closeNowPlaying: () => void;
   toggleLockScreen: () => void;
   toggleQueueModal: () => void;
-  // YouTube player bridge
+  downloadTrack: (track: Track) => Promise<boolean>;
+  removeDownload: (youtubeId: string) => Promise<boolean>;
+  isDownloaded: (youtubeId: string) => boolean;
+  // YouTube / Offline player bridge
   setYouTubePlayer: (player: any) => void;
 }
 
@@ -54,12 +73,35 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isNowPlayingOpen, setIsNowPlayingOpen] = useState<boolean>(false);
   const [isLockScreenOpen, setIsLockScreenOpen] = useState<boolean>(false);
   const [isQueueOpen, setIsQueueOpen] = useState<boolean>(false);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
+  const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
 
-  const playerRef = useRef<any>(null);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ytPlayerRef = useRef<any>(null); // YouTube IFrame player instance
-  const isPlayingRef = useRef<boolean>(false); // Stable ref for visibilitychange closure
+  const isPlayingRef = useRef<boolean>(false);
 
+  // Load existing offline downloads on mount
+  useEffect(() => {
+    getAllOfflineTracks()
+      .then((tracks) => {
+        setDownloadedIds(new Set(tracks.map((t) => t.youtubeId)));
+      })
+      .catch(() => {});
+
+    // Monitor online/offline network status
+    const updateOnlineStatus = () => {
+      setIsOfflineMode(!navigator.onLine);
+    };
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+    updateOnlineStatus();
+
+    return () => {
+      window.removeEventListener("online", updateOnlineStatus);
+      window.removeEventListener("offline", updateOnlineStatus);
+    };
+  }, []);
 
   // Media Session API integration for OS/hardware controls & lock screen background playback
   useEffect(() => {
@@ -75,22 +117,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         ],
       });
 
-      // Keep OS playback state in sync
       navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
 
-      // Bridge to real audio engine so OS / lock screen hardware controls work
       navigator.mediaSession.setActionHandler("play", () => {
         setIsPlaying(true);
-        try { window._aurafyResume?.(); } catch (e) {}
+        try {
+          window._aurafyResume?.();
+        } catch (e) {}
       });
       navigator.mediaSession.setActionHandler("pause", () => {
         setIsPlaying(false);
-        try { window._aurafyPause?.(); } catch (e) {}
+        try {
+          window._aurafyPause?.();
+        } catch (e) {}
       });
       navigator.mediaSession.setActionHandler("previoustrack", () => prevTrack());
       navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
 
-      // Lock screen scrubber seeking
       navigator.mediaSession.setActionHandler("seekto", (details) => {
         if (details.seekTime !== undefined) {
           seekTo(details.seekTime);
@@ -107,7 +150,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // Fallback
     }
-  }, [currentTrack, isPlaying, duration, progress]);
+  }, [currentTrack, isPlaying, duration, progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync position state on mobile lock screen
   useEffect(() => {
@@ -150,10 +193,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
-
   // Playback timer simulation for seamless demo & API player fallback
   useEffect(() => {
-    // Keep ref in sync for visibilitychange closure
     isPlayingRef.current = isPlaying;
 
     if (isPlaying) {
@@ -173,14 +214,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
-  }, [isPlaying, duration]);
+  }, [isPlaying, duration]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const playTrack = async (track: Track, newQueue?: Track[]) => {
+    // Check if song has local offline blob cached
+    let resolvedTrack = track;
+    try {
+      const offline = await getOfflineTrack(track.youtubeId);
+      if (offline && offline.objectUrl) {
+        resolvedTrack = {
+          ...track,
+          audioUrl: offline.objectUrl,
+        };
+      }
+    } catch {}
 
-  const playTrack = (track: Track, newQueue?: Track[]) => {
-    setCurrentTrack(track);
+    setCurrentTrack(resolvedTrack);
     setIsPlaying(true);
     setProgress(0);
-    setDuration(track.duration || 210);
+    setDuration(resolvedTrack.duration || 210);
 
     if (newQueue && newQueue.length > 0) {
       setQueue(newQueue);
@@ -193,7 +245,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setIsPlaying((prev) => !prev);
   };
 
-  const nextTrack = () => {
+  const nextTrack = useCallback(() => {
     if (queue.length === 0 || !currentTrack) return;
 
     if (repeatMode === "one") {
@@ -218,14 +270,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const nextTr = queue[nextIndex];
     if (nextTr) {
-      setCurrentTrack(nextTr);
-      setProgress(0);
-      setDuration(nextTr.duration || 210);
-      setIsPlaying(true);
+      playTrack(nextTr);
     }
-  };
+  }, [queue, currentTrack, repeatMode, isShuffle]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const prevTrack = () => {
+  const prevTrack = useCallback(() => {
     if (queue.length === 0 || !currentTrack) return;
     if (progress > 5) {
       setProgress(0);
@@ -236,12 +285,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
     const prevTr = queue[prevIndex];
     if (prevTr) {
-      setCurrentTrack(prevTr);
-      setProgress(0);
-      setDuration(prevTr.duration || 210);
-      setIsPlaying(true);
+      playTrack(prevTr);
     }
-  };
+  }, [queue, currentTrack, progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const seekTo = (seconds: number) => {
     setProgress(seconds);
@@ -299,6 +345,74 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const toggleLockScreen = () => setIsLockScreenOpen((prev) => !prev);
   const toggleQueueModal = () => setIsQueueOpen((prev) => !prev);
 
+  // Download song to phone & offline storage
+  const downloadTrack = async (track: Track): Promise<boolean> => {
+    const yId = track.youtubeId;
+    if (downloadedIds.has(yId) || downloadingIds.has(yId)) return true;
+
+    setDownloadingIds((prev) => new Set(prev).add(yId));
+
+    try {
+      // 1. Fetch audio payload from API route
+      const res = await fetch(
+        `/api/download?id=${encodeURIComponent(yId)}&title=${encodeURIComponent(
+          track.title
+        )}&artist=${encodeURIComponent(track.artist)}`
+      );
+
+      if (!res.ok) throw new Error("Download request failed");
+
+      const audioBlob = await res.blob();
+
+      // 2. Save into IndexedDB for in-app offline playback
+      await saveTrackOffline(track, audioBlob);
+
+      // 3. Trigger native file download to phone's file storage
+      const blobUrl = URL.createObjectURL(audioBlob);
+      const anchor = document.createElement("a");
+      anchor.href = blobUrl;
+      anchor.download = `${track.artist} - ${track.title}.mp3`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+      setDownloadedIds((prev) => new Set(prev).add(yId));
+      setDownloadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(yId);
+        return next;
+      });
+
+      return true;
+    } catch (err) {
+      console.error("[Download Error]:", err);
+      setDownloadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(yId);
+        return next;
+      });
+      return false;
+    }
+  };
+
+  // Remove download from offline storage
+  const removeDownload = async (youtubeId: string): Promise<boolean> => {
+    const success = await removeOfflineTrack(youtubeId);
+    if (success) {
+      setDownloadedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(youtubeId);
+        return next;
+      });
+    }
+    return success;
+  };
+
+  const isDownloaded = (youtubeId: string): boolean => {
+    return downloadedIds.has(youtubeId);
+  };
 
   return (
     <PlayerContext.Provider
@@ -315,6 +429,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         isNowPlayingOpen,
         isLockScreenOpen,
         isQueueOpen,
+        isOfflineMode,
+        downloadedIds,
+        downloadingIds,
         playTrack,
         togglePlay,
         nextTrack,
@@ -331,6 +448,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         closeNowPlaying,
         toggleLockScreen,
         toggleQueueModal,
+        downloadTrack,
+        removeDownload,
+        isDownloaded,
         setYouTubePlayer,
       }}
     >

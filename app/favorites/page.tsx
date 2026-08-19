@@ -7,8 +7,9 @@ import FilterPill from "@/components/FilterPill";
 import SongCard from "@/components/SongCard";
 import PlaylistCard from "@/components/PlaylistCard";
 import { FOR_YOU_SONGS, RECENTLY_PLAYED_INITIAL, TRENDING_PLAYLISTS } from "@/lib/youtube";
+import { getAllOfflineTracks, getOfflineStorageUsage } from "@/lib/offlineStorage";
 import { Track, Playlist } from "@/types/music";
-import { Heart, Play, Clock, Music, ListMusic, Plus } from "lucide-react";
+import { Heart, Play, Clock, Music, ListMusic, Plus, ArrowDownCircle, HardDrive } from "lucide-react";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -17,9 +18,14 @@ const GUEST_USER_ID = "guest";
 
 export default function FavoritesPage() {
   const [activeFilter, setActiveFilter] = useState("All Songs");
-  const { playTrack } = usePlayer();
+  const { playTrack, downloadedIds } = usePlayer();
   const [localListenLater, setLocalListenLater] = useState<Track[]>([]);
   const [localPlaylists, setLocalPlaylists] = useState<Playlist[]>([]);
+  const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
+  const [storageUsage, setStorageUsage] = useState<{ count: number; sizeMB: number }>({
+    count: 0,
+    sizeMB: 0,
+  });
 
   const favoriteSongs = FOR_YOU_SONGS.concat(RECENTLY_PLAYED_INITIAL);
 
@@ -35,7 +41,7 @@ export default function FavoritesPage() {
     if (q2) convexPlaylists = q2;
   } catch {}
 
-  // Sync from localStorage
+  // Sync from localStorage & IndexedDB
   useEffect(() => {
     try {
       const storedLL = localStorage.getItem("aurafy_listen_later");
@@ -44,9 +50,12 @@ export default function FavoritesPage() {
       const storedPL = localStorage.getItem("aurafy_user_playlists");
       if (storedPL) setLocalPlaylists(JSON.parse(storedPL));
     } catch {}
-  }, [activeFilter]);
 
-  const filters = ["All Songs", "Playlists", "Listen Later", "Recently Added"];
+    getAllOfflineTracks().then((tracks) => setOfflineTracks(tracks)).catch(() => {});
+    getOfflineStorageUsage().then((usage) => setStorageUsage(usage)).catch(() => {});
+  }, [activeFilter, downloadedIds]);
+
+  const filters = ["All Songs", "Downloaded", "Playlists", "Listen Later", "Recently Added"];
 
   // Combined listen later tracks
   const combinedListenLater: Track[] =
@@ -76,7 +85,9 @@ export default function FavoritesPage() {
   ];
 
   const displayedSongs: Track[] =
-    activeFilter === "Listen Later"
+    activeFilter === "Downloaded"
+      ? offlineTracks
+      : activeFilter === "Listen Later"
       ? combinedListenLater
       : favoriteSongs;
 
@@ -89,7 +100,9 @@ export default function FavoritesPage() {
         <div className="bg-gradient-to-r from-red-600 to-[#D7192F] rounded-3xl p-6 text-white shadow-md flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-white/80 mb-1">
-              {activeFilter === "Listen Later" ? (
+              {activeFilter === "Downloaded" ? (
+                <ArrowDownCircle className="w-4 h-4 text-white" />
+              ) : activeFilter === "Listen Later" ? (
                 <Clock className="w-4 h-4 text-white" />
               ) : activeFilter === "Playlists" ? (
                 <ListMusic className="w-4 h-4 text-white" />
@@ -97,11 +110,13 @@ export default function FavoritesPage() {
                 <Heart className="w-4 h-4 fill-white text-white" />
               )}
               <span className="text-[11px] font-extrabold uppercase tracking-widest">
-                YOUR LIBRARY
+                {activeFilter === "Downloaded" ? "OFFLINE VAULT" : "YOUR LIBRARY"}
               </span>
             </div>
             <h2 className="text-2xl font-extrabold tracking-tight">
-              {activeFilter === "Listen Later"
+              {activeFilter === "Downloaded"
+                ? "Downloaded Music"
+                : activeFilter === "Listen Later"
                 ? "Listen Later"
                 : activeFilter === "Playlists"
                 ? "Your Playlists"
@@ -110,6 +125,8 @@ export default function FavoritesPage() {
             <p className="text-xs text-white/80 font-medium mt-1">
               {activeFilter === "Playlists"
                 ? `${allUserPlaylists.length} playlists available`
+                : activeFilter === "Downloaded"
+                ? `${displayedSongs.length} tracks offline • ${storageUsage.sizeMB} MB`
                 : `${displayedSongs.length} ${displayedSongs.length === 1 ? "track" : "tracks"} saved`}
             </p>
           </div>
@@ -147,11 +164,24 @@ export default function FavoritesPage() {
           ))}
         </div>
 
+        {/* Storage Stats Pill for Downloaded tab */}
+        {activeFilter === "Downloaded" && offlineTracks.length > 0 && (
+          <div className="flex items-center justify-between bg-white border border-[#E3E4E6] rounded-2xl px-4 py-3 text-xs shadow-2xs">
+            <div className="flex items-center space-x-2 text-[#5F6368]">
+              <HardDrive className="w-4 h-4 text-emerald-600" />
+              <span className="font-semibold text-black">Offline Phone Storage:</span>
+              <span>{storageUsage.sizeMB} MB used</span>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              Ready Offline
+            </span>
+          </div>
+        )}
+
         {/* Content Section */}
         {activeFilter === "Playlists" ? (
           <section aria-label="Playlists Grid" className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 sm:gap-4">
-              {/* Create Playlist Card */}
               <Link
                 href="/playlist/create"
                 className="group flex flex-col items-center justify-center bg-white rounded-2xl p-5 border-2 border-dashed border-[#E3E4E6] hover:border-[#D7192F] transition-all hover:shadow-md active:scale-98 cursor-pointer min-h-[190px] text-center"
@@ -174,15 +204,29 @@ export default function FavoritesPage() {
           <section aria-label="Songs List" className="space-y-2.5">
             {displayedSongs.length === 0 ? (
               <div className="py-12 text-center text-[#8A8D91] space-y-2">
-                <Music className="w-10 h-10 mx-auto text-[#8A8D91]/60" />
-                <p className="text-sm font-semibold">
-                  {activeFilter === "Listen Later"
-                    ? "No tracks in Listen Later yet."
-                    : "No songs saved yet."}
-                </p>
-                <p className="text-xs">
-                  Search for songs and tap &ldquo;⋮&rdquo; &rarr; &ldquo;Listen Later&rdquo; to save.
-                </p>
+                {activeFilter === "Downloaded" ? (
+                  <>
+                    <ArrowDownCircle className="w-10 h-10 mx-auto text-[#8A8D91]/60" />
+                    <p className="text-sm font-semibold">No downloaded songs yet.</p>
+                    <p className="text-xs max-w-xs mx-auto">
+                      Tap the &ldquo;⋮&rdquo; menu on any song and select &ldquo;Download to Phone&rdquo; to save for anytime offline listening!
+                    </p>
+                  </>
+                ) : activeFilter === "Listen Later" ? (
+                  <>
+                    <Clock className="w-10 h-10 mx-auto text-[#8A8D91]/60" />
+                    <p className="text-sm font-semibold">No tracks in Listen Later yet.</p>
+                    <p className="text-xs">
+                      Search for songs and tap &ldquo;⋮&rdquo; &rarr; &ldquo;Listen Later&rdquo; to save.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Music className="w-10 h-10 mx-auto text-[#8A8D91]/60" />
+                    <p className="text-sm font-semibold">No songs saved yet.</p>
+                    <p className="text-xs">Explore songs and tap the heart icon to save.</p>
+                  </>
+                )}
               </div>
             ) : (
               displayedSongs.map((song, i) => (

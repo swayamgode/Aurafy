@@ -2,14 +2,16 @@
 
 import React from "react";
 import Image from "next/image";
-import { Play, Pause, SkipBack, SkipForward, Smartphone } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import AudioEqualizer from "@/components/AudioEqualizer";
 import { usePlayer } from "@/lib/PlayerContext";
 
 export default function MiniPlayer() {
+  const pathname = usePathname();
   const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, openNowPlaying } = usePlayer();
 
-  if (!currentTrack) return null;
+  if (pathname === "/login" || !currentTrack) return null;
 
   return (
     <aside

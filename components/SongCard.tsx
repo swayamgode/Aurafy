@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { Play, Pause, Heart, MoreVertical, Trash2 } from "lucide-react";
+import { Play, Pause, Heart, MoreVertical, Trash2, ArrowDownCircle } from "lucide-react";
 import { Track } from "@/types/music";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useToast } from "@/lib/ToastContext";
@@ -21,12 +21,13 @@ export default function SongCard({
   onRemove,
   isFavoritedInitial = false,
 }: SongCardProps) {
-  const { currentTrack, isPlaying, playTrack, togglePlay, addToQueue } = usePlayer();
+  const { currentTrack, isPlaying, playTrack, togglePlay, isDownloaded } = usePlayer();
   const { showToast } = useToast();
   const [isFavorited, setIsFavorited] = useState(isFavoritedInitial || variant === "favorite");
   const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
 
   const isCurrent = currentTrack?.youtubeId === track.youtubeId;
+  const isSongDownloaded = isDownloaded(track.youtubeId);
 
   const handlePlayClick = () => {
     if (isCurrent) {
@@ -80,9 +81,14 @@ export default function SongCard({
             </div>
           </div>
           <div className="min-w-0">
-            <h4 className={`text-xs font-semibold truncate ${isCurrent ? "text-[#D7192F]" : "text-black"}`}>
-              {track.title}
-            </h4>
+            <div className="flex items-center space-x-1.5">
+              <h4 className={`text-xs font-semibold truncate ${isCurrent ? "text-[#D7192F]" : "text-black"}`}>
+                {track.title}
+              </h4>
+              {isSongDownloaded && (
+                <ArrowDownCircle className="w-3 h-3 text-emerald-600 shrink-0" />
+              )}
+            </div>
             <p className="text-[11px] text-[#5F6368] truncate">{track.artist}</p>
           </div>
         </div>
@@ -119,13 +125,24 @@ export default function SongCard({
         </div>
 
         <div className="min-w-0">
-          <h4
-            className={`text-sm font-semibold truncate ${
-              isCurrent ? "text-[#D7192F]" : "text-black group-hover:text-[#D7192F]"
-            }`}
-          >
-            {track.title}
-          </h4>
+          <div className="flex items-center space-x-1.5">
+            <h4
+              className={`text-sm font-semibold truncate ${
+                isCurrent ? "text-[#D7192F]" : "text-black group-hover:text-[#D7192F]"
+              }`}
+            >
+              {track.title}
+            </h4>
+            {isSongDownloaded && (
+              <span
+                title="Downloaded for offline playback"
+                className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-md shrink-0"
+              >
+                <ArrowDownCircle className="w-3 h-3 mr-0.5 text-emerald-600" />
+                OFFLINE
+              </span>
+            )}
+          </div>
           <p className="text-xs text-[#5F6368] truncate mt-0.5 font-normal">
             {track.artist} {track.album ? `• ${track.album}` : ""}
           </p>

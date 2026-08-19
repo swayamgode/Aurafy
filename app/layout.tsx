@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import ConvexClientProvider from "@/lib/ConvexClientProvider";
+import { AuthProvider } from "@/lib/AuthContext";
 import { PlayerProvider } from "@/lib/PlayerContext";
 import BottomNavigation from "@/components/BottomNavigation";
 import MiniPlayer from "@/components/MiniPlayer";
@@ -69,21 +70,23 @@ export default function RootLayout({
       </head>
       <body className="bg-[#F8F9FA] text-[#111111] antialiased min-h-screen pb-32">
         <ConvexClientProvider>
-          <ToastProvider>
-            <PlayerProvider>
-              {/* Main Application Container */}
-              <div className="max-w-md mx-auto min-h-screen bg-[#F8F9FA] shadow-xs relative flex flex-col sm:max-w-2xl md:max-w-4xl lg:max-w-6xl">
-                <main className="flex-1 pb-16">{children}</main>
+          <AuthProvider>
+            <ToastProvider>
+              <PlayerProvider>
+                {/* Main Application Container */}
+                <div className="max-w-md mx-auto min-h-screen bg-[#F8F9FA] shadow-xs relative flex flex-col sm:max-w-2xl md:max-w-4xl lg:max-w-6xl">
+                  <main className="flex-1 pb-16">{children}</main>
 
-                {/* Persistent Global Players & Navigation */}
-                <MiniPlayer />
-                <BottomNavigation />
-                <NowPlayingModal />
-                <LockScreenPlayer />
-                <YouTubeAudioPlayer />
-              </div>
-            </PlayerProvider>
-          </ToastProvider>
+                  {/* Persistent Global Players & Navigation */}
+                  <MiniPlayer />
+                  <BottomNavigation />
+                  <NowPlayingModal />
+                  <LockScreenPlayer />
+                  <YouTubeAudioPlayer />
+                </div>
+              </PlayerProvider>
+            </ToastProvider>
+          </AuthProvider>
         </ConvexClientProvider>
       </body>
     </html>
