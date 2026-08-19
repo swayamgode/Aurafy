@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ## Current Status
-All phases complete. Phase 20 added: Implemented one-time user onboarding/login flow (`/login`), persistent profile tracking in Convex `users` table & `localStorage`, profile customization with avatar selection, and logout session management.
+All phases complete. Phase 21 added: Built interactive `AddSongsModal` with live YouTube search, offline downloaded vault browsing, favorites tabs, and multi-song toggle addition for Create Playlist (`/playlist/create`) and Playlist Details (`/playlist/[id]`).
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -24,8 +24,10 @@ All phases complete. Phase 20 added: Implemented one-time user onboarding/login 
 - [x] Phase 18: Search API Schema Fix & Crash-Proofing (aligned `/api/search` return signature `{ songs, artists, playlists }` with `SearchResult` and added safe array defaults in `SearchPage`).
 - [x] Phase 19: Official YouTube Data API v3 Key Integration & Mobile Offline Song Download Engine (`lib/offlineStorage.ts` IndexedDB audio caching + `/api/download` MP3 stream endpoint + `/api/search` Google YouTube Data v3 API handling with fallback + `PlayerContext` offline playback routing + `FavoritesPage` Downloaded filter pill + `ProfilePage` API key configuration + `SongActionSheet` & `NowPlayingModal` download actions).
 - [x] Phase 20: One-Time User Login & Persistent Profile Tracking (`convex/users.ts` schema operations + `lib/AuthContext.tsx` persistent auth provider + `app/login/page.tsx` editorial onboarding screen with avatar picker + dynamic user identity across `AppHeader`, `NavigationDrawer`, and `ProfilePage` + one-click guest start & logout handling).
+- [x] Phase 21: Playlist Song Picker with Live Search & Downloaded Vault Selection (`components/AddSongsModal.tsx` + integration into `app/playlist/create/page.tsx` and `app/playlist/[id]/page.tsx` supporting live debounced search, offline downloaded vault songs, favorites, and 1-tap add/remove toggling).
 
 ## Important Architectural Decisions
+- **Playlist Song Picker Architecture**: Reusable `AddSongsModal` allowing users to search YouTube, pick from downloaded offline vault songs, or add from favorites/recommendations with live toggle states and instant feedback.
 - **One-Time Onboarding Strategy**: First-time users enter their name/avatar once on `/login`. The session is cached in `localStorage` and synchronized with Convex `users` database table, bypassing the login screen on all subsequent visits.
 - **Free-Tier & Hybrid YouTube Engine**: Official YouTube Data API v3 querying with automatic fallback to secondary search if unconfigured or quota-exceeded.
 - **Offline Phone Storage Architecture**: High-capacity IndexedDB storage for downloaded song audio blobs and metadata + dual-engine audio player (`YouTubeAudioPlayer.tsx`) switching dynamically between online YouTube stream and local HTML5 audio blob.

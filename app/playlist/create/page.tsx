@@ -4,8 +4,9 @@ import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, Camera, Plus, Check, Sparkles, Image as ImageIcon } from "lucide-react";
+import { X, Plus, Check, Sparkles } from "lucide-react";
 import SongCard from "@/components/SongCard";
+import AddSongsModal from "@/components/AddSongsModal";
 import { FOR_YOU_SONGS } from "@/lib/youtube";
 import { Track, Playlist } from "@/types/music";
 import { useToast } from "@/lib/ToastContext";
@@ -35,6 +36,7 @@ export default function CreatePlaylistPage() {
   ]);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Safe Convex mutation
   let createPlaylistMut: any = null;
@@ -47,16 +49,15 @@ export default function CreatePlaylistPage() {
     setSongs((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddMoreSongs = () => {
-    const unused = FOR_YOU_SONGS.find(
-      (s) => !songs.some((existing) => existing.youtubeId === s.youtubeId)
-    );
-    if (unused) {
-      setSongs((prev) => [...prev, unused]);
-      showToast(`Added "${unused.title}"`, "success");
-    } else {
-      router.push("/search");
-    }
+  const handleToggleSong = (track: Track) => {
+    setSongs((prev) => {
+      const exists = prev.some((s) => s.youtubeId === track.youtubeId);
+      if (exists) {
+        return prev.filter((s) => s.youtubeId !== track.youtubeId);
+      } else {
+        return [...prev, track];
+      }
+    });
   };
 
   const handleSave = async () => {
@@ -230,29 +231,46 @@ export default function CreatePlaylistPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-extrabold text-black uppercase tracking-wider">
-              Starting Songs ({songs.length})
+              Songs in Playlist ({songs.length})
             </h3>
             <button
-              onClick={handleAddMoreSongs}
+              onClick={() => setIsAddModalOpen(true)}
               className="px-3.5 py-1.5 rounded-full bg-[#D7192F] text-white text-xs font-bold hover:bg-red-700 transition-colors flex items-center space-x-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add More</span>
+              <span>+ Add Songs</span>
             </button>
           </div>
 
-          <div className="space-y-2.5">
-            {songs.map((song, index) => (
-              <SongCard
-                key={`${song.youtubeId}-${index}`}
-                track={song}
-                variant="playlist"
-                onRemove={() => handleRemoveSong(index)}
-              />
-            ))}
-          </div>
+          {songs.length === 0 ? (
+            <div className="py-8 text-center text-[#8A8D91] bg-white rounded-2xl border border-[#E3E4E6] p-4">
+              <p className="text-xs font-bold text-black">No songs added yet</p>
+              <p className="text-[11px] text-[#5F6368] mt-0.5">
+                Tap &ldquo;+ Add Songs&rdquo; to browse downloaded songs or search YouTube.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {songs.map((song, index) => (
+                <SongCard
+                  key={`${song.youtubeId}-${index}`}
+                  track={song}
+                  variant="playlist"
+                  onRemove={() => handleRemoveSong(index)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Add Songs Modal */}
+      <AddSongsModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        selectedSongs={songs}
+        onToggleSong={handleToggleSong}
+      />
     </div>
   );
 }

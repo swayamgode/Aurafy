@@ -12,9 +12,9 @@ import {
   Trash2,
   Share2,
   Music,
-  ListPlus,
 } from "lucide-react";
 import SongCard from "@/components/SongCard";
+import AddSongsModal from "@/components/AddSongsModal";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useToast } from "@/lib/ToastContext";
 import { TRENDING_PLAYLISTS, FOR_YOU_SONGS } from "@/lib/youtube";
@@ -33,13 +33,17 @@ export default function PlaylistDetailsPage() {
 
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [songs, setSongs] = useState<Track[]>([]);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Safe Convex query
+  // Safe Convex query & mutation
   let convexPlaylists: any[] = [];
+  let addSongToPlaylistMut: any = null;
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const q = useQuery(api.playlists.getPlaylists, { userId: GUEST_USER_ID });
     if (q) convexPlaylists = q;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    addSongToPlaylistMut = useMutation(api.playlists.addSongToPlaylist);
   } catch {}
 
   // Load playlist data
@@ -50,7 +54,6 @@ export default function PlaylistDetailsPage() {
     const trending = TRENDING_PLAYLISTS.find((p) => p.id === playlistId);
     if (trending) {
       setPlaylist(trending);
-      // Retrieve any saved songs for this playlist or fallback to FOR_YOU_SONGS
       try {
         const stored = localStorage.getItem(`aurafy_playlist_${playlistId}`);
         if (stored) {
@@ -119,17 +122,31 @@ export default function PlaylistDetailsPage() {
     }
   };
 
-  const handleAddMoreSongs = () => {
-    const nextSong = FOR_YOU_SONGS.find((s) => !songs.some((existing) => existing.youtubeId === s.youtubeId));
-    if (nextSong) {
-      const updated = [...songs, nextSong];
-      setSongs(updated);
-      try {
-        localStorage.setItem(`aurafy_playlist_${playlistId}`, JSON.stringify(updated));
-      } catch {}
-      showToast(`Added "${nextSong.title}" to playlist`, "success");
+  const handleToggleSong = async (track: Track) => {
+    const exists = songs.some((s) => s.youtubeId === track.youtubeId);
+    let updated: Track[];
+    if (exists) {
+      updated = songs.filter((s) => s.youtubeId !== track.youtubeId);
     } else {
-      router.push("/search");
+      updated = [...songs, track];
+    }
+    setSongs(updated);
+
+    try {
+      localStorage.setItem(`aurafy_playlist_${playlistId}`, JSON.stringify(updated));
+    } catch {}
+
+    if (!exists && addSongToPlaylistMut && !playlistId.startsWith("pl-") && !playlistId.startsWith("user-pl-")) {
+      try {
+        await addSongToPlaylistMut({
+          playlistId: playlistId as any,
+          youtubeId: track.youtubeId,
+          title: track.title,
+          artist: track.artist,
+          thumbnailUrl: track.thumbnailUrl,
+          duration: track.duration,
+        });
+      } catch {}
     }
   };
 
@@ -217,7 +234,7 @@ export default function PlaylistDetailsPage() {
           </button>
 
           <button
-            onClick={handleAddMoreSongs}
+            onClick={() => setIsAddModalOpen(true)}
             className="py-3.5 px-5 rounded-2xl bg-white border border-[#E3E4E6] text-black text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:bg-[#F1F2F3] active:scale-98 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4 text-[#D7192F]" />
@@ -232,14 +249,14 @@ export default function PlaylistDetailsPage() {
               <Music className="w-12 h-12 mx-auto text-[#8A8D91]/50" />
               <p className="text-sm font-bold text-black">No songs in this playlist yet</p>
               <p className="text-xs text-[#5F6368]">
-                Tap &ldquo;Add Songs&rdquo; or browse search and tap &ldquo;⋮&rdquo; &rarr; &ldquo;Add to Playlist&rdquo;.
+                Tap &ldquo;Add Songs&rdquo; to browse downloaded songs or search songs to add.
               </p>
               <button
-                onClick={handleAddMoreSongs}
+                onClick={() => setIsAddModalOpen(true)}
                 className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-black text-white text-xs font-bold hover:bg-[#D7192F] transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Find Songs</span>
+                <span>Add Songs</span>
               </button>
             </div>
           ) : (
@@ -254,6 +271,14 @@ export default function PlaylistDetailsPage() {
           )}
         </section>
       </div>
+
+      {/* Add Songs Modal */}
+      <AddSongsModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        selectedSongs={songs}
+        onToggleSong={handleToggleSong}
+      />
     </div>
   );
 }
