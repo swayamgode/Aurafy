@@ -6,7 +6,7 @@ import AppHeader from "@/components/AppHeader";
 import FilterPill from "@/components/FilterPill";
 import SongCard from "@/components/SongCard";
 import PlaylistCard from "@/components/PlaylistCard";
-import { FOR_YOU_SONGS, RECENTLY_PLAYED_INITIAL, TRENDING_PLAYLISTS } from "@/lib/youtube";
+import { TRENDING_PLAYLISTS } from "@/lib/youtube";
 import { getAllOfflineTracks, getOfflineStorageUsage } from "@/lib/offlineStorage";
 import { Track, Playlist } from "@/types/music";
 import { Heart, Play, Clock, Music, ListMusic, Plus, ArrowDownCircle, HardDrive } from "lucide-react";
@@ -19,6 +19,7 @@ const GUEST_USER_ID = "guest";
 export default function FavoritesPage() {
   const [activeFilter, setActiveFilter] = useState("All Songs");
   const { playTrack, downloadedIds } = usePlayer();
+  const [localFavorites, setLocalFavorites] = useState<Track[]>([]);
   const [localListenLater, setLocalListenLater] = useState<Track[]>([]);
   const [localPlaylists, setLocalPlaylists] = useState<Playlist[]>([]);
   const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
@@ -27,12 +28,14 @@ export default function FavoritesPage() {
     sizeMB: 0,
   });
 
-  const favoriteSongs = FOR_YOU_SONGS.concat(RECENTLY_PLAYED_INITIAL);
-
   // Safe Convex queries
+  let convexFavorites: any[] = [];
   let convexListenLater: any[] = [];
   let convexPlaylists: any[] = [];
   try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const q0 = useQuery(api.favorites.getFavorites, { userId: GUEST_USER_ID });
+    if (q0) convexFavorites = q0;
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const q1 = useQuery(api.listenLater.getListenLater, { userId: GUEST_USER_ID });
     if (q1) convexListenLater = q1;
@@ -44,6 +47,9 @@ export default function FavoritesPage() {
   // Sync from localStorage & IndexedDB
   useEffect(() => {
     try {
+      const storedFav = localStorage.getItem("aurafy_favorites");
+      if (storedFav) setLocalFavorites(JSON.parse(storedFav));
+
       const storedLL = localStorage.getItem("aurafy_listen_later");
       if (storedLL) setLocalListenLater(JSON.parse(storedLL));
 
@@ -57,6 +63,18 @@ export default function FavoritesPage() {
 
   const filters = ["All Songs", "Downloaded", "Playlists", "Listen Later", "Recently Added"];
 
+  // Combined favorites
+  const combinedFavorites: Track[] =
+    convexFavorites.length > 0
+      ? convexFavorites.map((item: any) => ({
+          youtubeId: item.youtubeId,
+          title: item.title,
+          artist: item.artist,
+          thumbnailUrl: item.thumbnailUrl,
+          duration: item.duration,
+        }))
+      : localFavorites;
+
   // Combined listen later tracks
   const combinedListenLater: Track[] =
     convexListenLater.length > 0
@@ -69,7 +87,7 @@ export default function FavoritesPage() {
         }))
       : localListenLater;
 
-  // Combined user playlists + trending
+  // Combined user playlists + presets
   const allUserPlaylists: Playlist[] = [
     ...(convexPlaylists.length > 0
       ? convexPlaylists.map((p: any) => ({
@@ -81,15 +99,24 @@ export default function FavoritesPage() {
           songsCount: p.songsCount ?? 0,
         }))
       : localPlaylists),
-    ...TRENDING_PLAYLISTS,
   ];
+
+  // All songs collection (user favorites + downloaded tracks deduplicated)
+  const allSavedSongsMap = new Map<string, Track>();
+  offlineTracks.forEach((t) => allSavedSongsMap.set(t.youtubeId, t));
+  combinedFavorites.forEach((t) => allSavedSongsMap.set(t.youtubeId, t));
+  const allSavedSongs = Array.from(allSavedSongsMap.values());
 
   const displayedSongs: Track[] =
     activeFilter === "Downloaded"
       ? offlineTracks
       : activeFilter === "Listen Later"
       ? combinedListenLater
-      : favoriteSongs;
+      : activeFilter === "Recently Added"
+      ? offlineTracks
+      : allSavedSongs.length > 0
+      ? allSavedSongs
+      : offlineTracks;
 
   return (
     <div className="min-h-screen pb-32">

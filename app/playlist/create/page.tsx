@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { X, Plus, Check, Sparkles } from "lucide-react";
 import SongCard from "@/components/SongCard";
 import AddSongsModal from "@/components/AddSongsModal";
-import { FOR_YOU_SONGS } from "@/lib/youtube";
 import { Track, Playlist } from "@/types/music";
 import { useToast } from "@/lib/ToastContext";
 import { useMutation } from "convex/react";
@@ -30,10 +29,7 @@ export default function CreatePlaylistPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [coverUrl, setCoverUrl] = useState<string>(COVER_PRESETS[0]);
-  const [songs, setSongs] = useState<Track[]>([
-    FOR_YOU_SONGS[0],
-    FOR_YOU_SONGS[1],
-  ]);
+  const [songs, setSongs] = useState<Track[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

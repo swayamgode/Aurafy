@@ -10,13 +10,11 @@ import ArtistCard from "@/components/ArtistCard";
 import PlaylistCard from "@/components/PlaylistCard";
 import SongCard from "@/components/SongCard";
 import {
-  FEATURED_ALBUM,
-  RECENTLY_PLAYED_INITIAL,
   FAVOURITE_ARTISTS,
   TRENDING_PLAYLISTS,
-  FOR_YOU_SONGS,
 } from "@/lib/youtube";
-import { Playlist } from "@/types/music";
+import { getAllOfflineTracks } from "@/lib/offlineStorage";
+import { Playlist, Track } from "@/types/music";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -24,26 +22,42 @@ import { api } from "@/convex/_generated/api";
 const GUEST_USER_ID = "guest";
 
 export default function HomePage() {
-  const { playTrack } = usePlayer();
+  const { playTrack, downloadedIds } = usePlayer();
   const [localPlaylists, setLocalPlaylists] = useState<Playlist[]>([]);
+  const [offlineSongs, setOfflineSongs] = useState<Track[]>([]);
+  const [userFavorites, setUserFavorites] = useState<Track[]>([]);
 
   // Safe Convex query
   let convexPlaylists: any[] = [];
+  let convexFavorites: any[] = [];
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const q = useQuery(api.playlists.getPlaylists, { userId: GUEST_USER_ID });
     if (q) convexPlaylists = q;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const qFav = useQuery(api.favorites.getFavorites, { userId: GUEST_USER_ID });
+    if (qFav) convexFavorites = qFav;
   } catch {}
 
-  // Sync custom playlists from localStorage
+  // Sync custom playlists & offline downloads
   useEffect(() => {
     try {
       const stored = localStorage.getItem("aurafy_user_playlists");
       if (stored) {
         setLocalPlaylists(JSON.parse(stored));
       }
+      const storedFav = localStorage.getItem("aurafy_favorites");
+      if (storedFav) {
+        setUserFavorites(JSON.parse(storedFav));
+      }
     } catch {}
-  }, []);
+
+    getAllOfflineTracks()
+      .then((tracks) => setOfflineSongs(tracks))
+      .catch(() => {});
+  }, [downloadedIds]);
+
+  const activeSongs = offlineSongs.length > 0 ? offlineSongs : userFavorites;
 
   // Combined user playlists
   const userPlaylists: Playlist[] =
@@ -98,55 +112,62 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* Featured Album Hero Card */}
-        <section aria-label="Featured Album">
-          <div
-            onClick={() =>
-              playTrack({
-                youtubeId: FEATURED_ALBUM.youtubeId,
-                title: FEATURED_ALBUM.title,
-                artist: FEATURED_ALBUM.artist,
-                thumbnailUrl: FEATURED_ALBUM.coverUrl,
-                duration: FEATURED_ALBUM.duration,
-              })
-            }
-            className="relative w-full h-56 sm:h-64 rounded-3xl overflow-hidden bg-black shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform"
-          >
-            <Image
-              src={FEATURED_ALBUM.coverUrl}
-              alt={FEATURED_ALBUM.title}
-              fill
-              priority
-              sizes="(max-width: 768px) 100vw, 800px"
-              className="object-cover group-hover:scale-105 transition-transform duration-500 opacity-80"
-            />
-            {/* Gradient Overlay for Readability */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 flex flex-col justify-end">
-              <div className="flex items-center space-x-2 text-[#D7192F] mb-1">
-                <Flame className="w-4 h-4 fill-[#D7192F]" />
-                <span className="text-[11px] font-extrabold tracking-widest uppercase">
-                  {FEATURED_ALBUM.tag}
-                </span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
-                {FEATURED_ALBUM.title}
-              </h2>
-              <p className="text-xs sm:text-sm text-white/80 font-medium mt-0.5">
-                By {FEATURED_ALBUM.artist}
-              </p>
-
-              <div className="mt-4 flex items-center space-x-3">
-                <button
-                  type="button"
-                  className="px-5 py-2.5 rounded-full bg-[#D7192F] text-white text-xs font-bold flex items-center space-x-2 shadow-lg group-hover:bg-red-700 transition-colors"
-                >
-                  <Play className="w-4 h-4 fill-white ml-0.5" />
-                  <span>PLAY NOW</span>
-                </button>
+        {/* Featured Track Hero Card — dynamic from downloads/favorites */}
+        {activeSongs.length > 0 ? (
+          <section aria-label="Featured Track">
+            <div
+              onClick={() => playTrack(activeSongs[0])}
+              className="relative w-full h-56 sm:h-64 rounded-3xl overflow-hidden bg-black shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform"
+            >
+              <Image
+                src={activeSongs[0].thumbnailUrl || "/cover-placeholder.png"}
+                alt={activeSongs[0].title}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 800px"
+                className="object-cover group-hover:scale-105 transition-transform duration-500 opacity-80"
+              />
+              {/* Gradient Overlay for Readability */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 flex flex-col justify-end">
+                <div className="flex items-center space-x-2 text-[#D7192F] mb-1">
+                  <Flame className="w-4 h-4 fill-[#D7192F]" />
+                  <span className="text-[11px] font-extrabold tracking-widest uppercase">
+                    DOWNLOADED
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                  {activeSongs[0].title}
+                </h2>
+                <p className="text-xs sm:text-sm text-white/80 font-medium mt-0.5">
+                  By {activeSongs[0].artist}
+                </p>
+                <div className="mt-4 flex items-center space-x-3">
+                  <button
+                    type="button"
+                    className="px-5 py-2.5 rounded-full bg-[#D7192F] text-white text-xs font-bold flex items-center space-x-2 shadow-lg group-hover:bg-red-700 transition-colors"
+                  >
+                    <Play className="w-4 h-4 fill-white ml-0.5" />
+                    <span>PLAY NOW</span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : (
+          <section aria-label="Get Started">
+            <Link href="/search">
+              <div className="relative w-full h-48 sm:h-56 rounded-3xl overflow-hidden bg-gradient-to-br from-[#111111] to-[#D7192F] shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform flex flex-col items-center justify-center text-center p-6">
+                <Sparkles className="w-10 h-10 text-white/60 mb-3" />
+                <h2 className="text-xl font-extrabold text-white">Start Your Journey</h2>
+                <p className="text-xs text-white/70 mt-1">Search for songs and download them for offline listening</p>
+                <div className="mt-4 px-5 py-2.5 rounded-full bg-white text-black text-xs font-bold flex items-center space-x-2 shadow-lg">
+                  <Play className="w-4 h-4 fill-black ml-0.5" />
+                  <span>FIND SONGS</span>
+                </div>
+              </div>
+            </Link>
+          </section>
+        )}
 
         {/* Your Playlists Section (Shown if user has custom playlists or quick create) */}
         <section aria-label="Your Playlists">
@@ -191,25 +212,27 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Recently Played Section */}
-        <section aria-label="Recently Played">
-          <div className="flex items-center justify-between mb-3.5">
-            <h3 className="text-base sm:text-lg font-extrabold text-black tracking-tight">
-              Recently Played
-            </h3>
-            <Link
-              href="/favorites"
-              className="text-xs font-bold text-[#5F6368] hover:text-[#D7192F] transition-colors"
-            >
-              See All
-            </Link>
-          </div>
-          <div className="flex items-center space-x-4 overflow-x-auto no-scrollbar pb-2">
-            {RECENTLY_PLAYED_INITIAL.map((track) => (
-              <AlbumCard key={track.youtubeId} track={track} />
-            ))}
-          </div>
-        </section>
+        {/* Recently Played Section (shows downloaded / favorited tracks) */}
+        {activeSongs.length > 0 && (
+          <section aria-label="Recently Played">
+            <div className="flex items-center justify-between mb-3.5">
+              <h3 className="text-base sm:text-lg font-extrabold text-black tracking-tight">
+                Recently Downloaded & Played
+              </h3>
+              <Link
+                href="/favorites"
+                className="text-xs font-bold text-[#5F6368] hover:text-[#D7192F] transition-colors"
+              >
+                See All ({activeSongs.length})
+              </Link>
+            </div>
+            <div className="flex items-center space-x-4 overflow-x-auto no-scrollbar pb-2">
+              {activeSongs.map((track) => (
+                <AlbumCard key={track.youtubeId} track={track} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Favourite Artists Section */}
         <section aria-label="Favourite Artists">
@@ -239,22 +262,40 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* For You Recommended Songs List */}
-        <section aria-label="For You">
-          <div className="flex items-center justify-between mb-3.5">
-            <h3 className="text-base sm:text-lg font-extrabold text-black tracking-tight">
-              For You
-            </h3>
-            <span className="text-xs text-[#8A8D91] font-medium">
-              Based on your taste
-            </span>
-          </div>
-          <div className="space-y-2.5">
-            {FOR_YOU_SONGS.map((song) => (
-              <SongCard key={song.youtubeId} track={song} />
-            ))}
-          </div>
-        </section>
+        {/* For You / Downloaded Songs List */}
+        {activeSongs.length > 0 ? (
+          <section aria-label="Your Songs">
+            <div className="flex items-center justify-between mb-3.5">
+              <h3 className="text-base sm:text-lg font-extrabold text-black tracking-tight">
+                Your Offline Vault & Favorites
+              </h3>
+              <span className="text-xs text-[#8A8D91] font-medium">
+                Ready to play anytime
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {activeSongs.map((song) => (
+                <SongCard key={song.youtubeId} track={song} />
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section aria-label="Discover Music" className="bg-white rounded-3xl p-6 border border-[#E3E4E6] text-center space-y-3 shadow-2xs">
+            <div className="w-12 h-12 rounded-full bg-red-50 text-[#D7192F] flex items-center justify-center mx-auto">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <h4 className="text-base font-extrabold text-black">Start Your Music Collection</h4>
+            <p className="text-xs text-[#5F6368] max-w-xs mx-auto">
+              Search YouTube for your favourite songs, tap &ldquo;⋮&rdquo; to download offline or save to favorites!
+            </p>
+            <Link
+              href="/search"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-black text-white text-xs font-bold hover:bg-[#D7192F] transition-colors"
+            >
+              <span>Search Songs Now</span>
+            </Link>
+          </section>
+        )}
       </div>
     </div>
   );

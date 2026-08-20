@@ -14,7 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Track } from "@/types/music";
-import { searchYouTube, FOR_YOU_SONGS, RECENTLY_PLAYED_INITIAL } from "@/lib/youtube";
+import { searchYouTube } from "@/lib/youtube";
 import { getAllOfflineTracks } from "@/lib/offlineStorage";
 import FilterPill from "@/components/FilterPill";
 import { useToast } from "@/lib/ToastContext";
@@ -37,7 +37,7 @@ export default function AddSongsModal({
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>("Search");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Track[]>(FOR_YOU_SONGS);
+  const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [downloadedSongs, setDownloadedSongs] = useState<Track[]>([]);
   const [favoriteSongs, setFavoriteSongs] = useState<Track[]>([]);
@@ -47,13 +47,20 @@ export default function AddSongsModal({
   useEffect(() => {
     if (isOpen) {
       getAllOfflineTracks()
-        .then((tracks) => setDownloadedSongs(tracks))
+        .then((tracks) => {
+          setDownloadedSongs(tracks);
+          if (!searchQuery.trim()) {
+            setSearchResults(tracks);
+          }
+        })
         .catch(() => {});
 
       try {
+        const storedFav = localStorage.getItem("aurafy_favorites");
+        const listFav: Track[] = storedFav ? JSON.parse(storedFav) : [];
         const storedLL = localStorage.getItem("aurafy_listen_later");
         const listLL: Track[] = storedLL ? JSON.parse(storedLL) : [];
-        const combined = [...listLL, ...FOR_YOU_SONGS.slice(0, 4)];
+        const combined = [...listFav, ...listLL];
         // Deduplicate
         const unique = combined.filter(
           (track, index, self) =>
@@ -69,7 +76,7 @@ export default function AddSongsModal({
     if (activeTab !== "Search") return;
 
     if (!searchQuery.trim()) {
-      setSearchResults(FOR_YOU_SONGS);
+      setSearchResults(downloadedSongs);
       setIsSearching(false);
       return;
     }
@@ -91,7 +98,7 @@ export default function AddSongsModal({
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, downloadedSongs]);
 
   if (!isOpen) return null;
 
@@ -107,7 +114,7 @@ export default function AddSongsModal({
       case "Favorites":
         return favoriteSongs;
       case "Recommended":
-        return [...FOR_YOU_SONGS, ...RECENTLY_PLAYED_INITIAL];
+        return downloadedSongs.length > 0 ? downloadedSongs : favoriteSongs;
       case "Search":
       default:
         return searchResults;

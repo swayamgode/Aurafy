@@ -1,15 +1,30 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AppHeader from "@/components/AppHeader";
 import StatsCard from "@/components/StatsCard";
 import FilterPill from "@/components/FilterPill";
 import SongCard from "@/components/SongCard";
 import { Headphones, TrendingUp, Clock, Disc, Sparkles } from "lucide-react";
-import { RECENTLY_PLAYED_INITIAL } from "@/lib/youtube";
+import { getAllOfflineTracks } from "@/lib/offlineStorage";
+import { Track } from "@/types/music";
 
 export default function ActivityPage() {
   const [activeTab, setActiveTab] = useState("Overview");
+  const [recentTracks, setRecentTracks] = useState<Track[]>([]);
+
+  useEffect(() => {
+    getAllOfflineTracks().then((tracks) => {
+      if (tracks.length > 0) {
+        setRecentTracks(tracks);
+      } else {
+        try {
+          const stored = localStorage.getItem("aurafy_listen_later");
+          if (stored) setRecentTracks(JSON.parse(stored));
+        } catch {}
+      }
+    });
+  }, []);
 
   const topGenres = [
     { name: "Lo-Fi Jazz", percentage: 42, tracks: "428 Tracks" },
@@ -106,9 +121,15 @@ export default function ActivityPage() {
               <h3 className="text-sm font-extrabold text-black uppercase tracking-wider">
                 Recent Activity History
               </h3>
-              {RECENTLY_PLAYED_INITIAL.map((song) => (
-                <SongCard key={song.youtubeId} track={song} variant="compact" />
-              ))}
+              {recentTracks.length > 0 ? (
+                recentTracks.map((song) => (
+                  <SongCard key={song.youtubeId} track={song} variant="compact" />
+                ))
+              ) : (
+                <p className="text-xs text-[#8A8D91] py-4 text-center">
+                  No playback activity yet. Play downloaded songs to see stats here!
+                </p>
+              )}
             </section>
           </div>
         )}
@@ -119,9 +140,13 @@ export default function ActivityPage() {
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#5F6368]">
               Full Played History
             </h3>
-            {RECENTLY_PLAYED_INITIAL.concat(RECENTLY_PLAYED_INITIAL).map((song, i) => (
-              <SongCard key={`${song.youtubeId}-${i}`} track={song} />
-            ))}
+            {recentTracks.length > 0 ? (
+              recentTracks.map((song, i) => (
+                <SongCard key={`${song.youtubeId}-${i}`} track={song} />
+              ))
+            ) : (
+              <p className="text-xs text-[#8A8D91] py-8 text-center">No listening history recorded yet.</p>
+            )}
           </div>
         )}
 

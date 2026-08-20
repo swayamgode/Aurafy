@@ -17,7 +17,7 @@ import SongCard from "@/components/SongCard";
 import AddSongsModal from "@/components/AddSongsModal";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useToast } from "@/lib/ToastContext";
-import { TRENDING_PLAYLISTS, FOR_YOU_SONGS, searchYouTube } from "@/lib/youtube";
+import { TRENDING_PLAYLISTS, searchYouTube } from "@/lib/youtube";
 import { Track, Playlist } from "@/types/music";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -73,7 +73,7 @@ export default function PlaylistDetailsPage() {
             return;
           }
         } catch {}
-        setSongs(FOR_YOU_SONGS.slice(0, 5));
+        setSongs([]);
         setIsLoading(false);
         return;
       }
@@ -108,7 +108,7 @@ export default function PlaylistDetailsPage() {
           }
         } catch {}
 
-        setSongs(FOR_YOU_SONGS.slice(0, 3));
+        setSongs([]);
         setIsLoading(false);
         return;
       }
@@ -167,12 +167,12 @@ export default function PlaylistDetailsPage() {
         const titleFormatted = cleanTerm.charAt(0).toUpperCase() + cleanTerm.slice(1);
         try {
           const searchRes = await searchYouTube(cleanTerm);
-          const matchedSongs = searchRes.songs.length > 0 ? searchRes.songs : FOR_YOU_SONGS;
+          const matchedSongs = searchRes.songs;
           setPlaylist({
             id: playlistId,
             title: `${titleFormatted} Mix`,
             description: `Best tracks curated for ${cleanTerm}`,
-            coverUrl: matchedSongs[0]?.thumbnailUrl || FOR_YOU_SONGS[0].thumbnailUrl,
+            coverUrl: matchedSongs[0]?.thumbnailUrl || "/cover-placeholder.png",
             creator: "Aurafy Mix",
             songsCount: matchedSongs.length,
           });
@@ -182,16 +182,16 @@ export default function PlaylistDetailsPage() {
         } catch {}
       }
 
-      // 5. Ultimate Fallback
+      // 5. Ultimate Fallback - empty playlist
       setPlaylist({
         id: playlistId,
-        title: "Curated Playlist",
-        description: "Explore curated soundscapes on Aurafy",
-        coverUrl: FOR_YOU_SONGS[0].thumbnailUrl,
-        creator: "Aurafy Editorial",
-        songsCount: FOR_YOU_SONGS.length,
+        title: "Playlist",
+        description: "Add songs to get started",
+        coverUrl: "/cover-placeholder.png",
+        creator: "You",
+        songsCount: 0,
       });
-      setSongs(FOR_YOU_SONGS);
+      setSongs([]);
       setIsLoading(false);
     };
 

@@ -101,7 +101,8 @@ export default function YouTubeAudioPlayer() {
       playerRef.current = null;
     }
 
-    const videoId = currentTrack?.youtubeId || "jfKfPfyJRdk";
+    const videoId = currentTrack?.youtubeId || "";
+    if (!videoId) return;
 
     try {
       playerRef.current = new window.YT.Player(containerRef.current, {

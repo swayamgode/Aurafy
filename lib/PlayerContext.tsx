@@ -9,7 +9,6 @@ import React, {
   useCallback,
 } from "react";
 import { Track, RepeatMode } from "@/types/music";
-import { FOR_YOU_SONGS } from "./youtube";
 import {
   saveTrackOffline,
   removeOfflineTrack,
@@ -61,13 +60,13 @@ interface PlayerContextType {
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(FOR_YOU_SONGS[0]);
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(FOR_YOU_SONGS[0].duration || 240);
+  const [duration, setDuration] = useState<number>(0);
   const [volume, setVolumeState] = useState<number>(0.8);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [queue, setQueue] = useState<Track[]>(FOR_YOU_SONGS);
+  const [queue, setQueue] = useState<Track[]>([]);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
   const [isNowPlayingOpen, setIsNowPlayingOpen] = useState<boolean>(false);
