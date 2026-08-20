@@ -10,6 +10,7 @@ import NowPlayingModal from "@/components/NowPlayingModal";
 import LockScreenPlayer from "@/components/LockScreenPlayer";
 import YouTubeAudioPlayer from "@/components/YouTubeAudioPlayer";
 import { ToastProvider } from "@/lib/ToastContext";
+import DownloadBanner from "@/components/DownloadBanner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -78,6 +79,7 @@ export default function RootLayout({
                   <main className="flex-1 pb-16">{children}</main>
 
                   {/* Persistent Global Players & Navigation */}
+                  <DownloadBanner />
                   <MiniPlayer />
                   <BottomNavigation />
                   <NowPlayingModal />

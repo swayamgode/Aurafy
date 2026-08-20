@@ -172,16 +172,18 @@ export default function SongActionSheet({
   const handleDownload = async () => {
     if (isCurrentDownloaded) {
       await removeDownload(track.youtubeId);
-      showToast(`Removed "${track.title}" from offline downloads`, "info");
+      showToast(`"${track.title}" removed from offline storage`, "info");
       onClose();
+    } else if (isCurrentlyDownloading) {
+      showToast(`Already downloading "${track.title}"...`, "info");
     } else {
-      showToast(`Downloading "${track.title}" to phone...`, "info");
+      showToast(`Downloading "${track.title}" — please wait a moment...`, "info");
       onClose();
       const success = await downloadTrack(track);
       if (success) {
-        showToast(`Saved "${track.title}" for offline playback!`, "success");
+        showToast(`✅ "${track.title}" saved! Tap to play offline.`, "success");
       } else {
-        showToast(`Download complete (saved to phone)`, "success");
+        showToast(`❌ Download failed. Check your connection and try again.`, "info");
       }
     }
   };

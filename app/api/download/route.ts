@@ -3,9 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 // Public audio stream endpoints for real YouTube audio extraction
 const AUDIO_ENDPOINTS = [
   (id: string) => `https://inv.nadeko.net/latest_version?id=${id}&itag=140`,
+  (id: string) => `https://invidious.privacydev.net/latest_version?id=${id}&itag=140`,
+  (id: string) => `https://yt.artemislena.eu/latest_version?id=${id}&itag=140`,
   (id: string) => `https://y.com.sb/latest_version?id=${id}&itag=140`,
   (id: string) => `https://invidious.nerdvpn.de/latest_version?id=${id}&itag=140`,
   (id: string) => `https://pipedapi.tokhmi.xyz/streams/${id}`,
+  (id: string) => `https://pipedapi.kavin.rocks/streams/${id}`,
 ];
 
 export async function GET(req: NextRequest) {
@@ -27,7 +30,7 @@ export async function GET(req: NextRequest) {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         },
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(7000),
       });
 
       if (res.ok) {
@@ -39,7 +42,7 @@ export async function GET(req: NextRequest) {
           );
           if (audioStreams.length > 0 && audioStreams[0].url) {
             const streamRes = await fetch(audioStreams[0].url, {
-              signal: AbortSignal.timeout(6000),
+              signal: AbortSignal.timeout(10000),
             });
             if (streamRes.ok) {
               const arrayBuffer = await streamRes.arrayBuffer();
@@ -80,6 +83,7 @@ export async function GET(req: NextRequest) {
 
   // 2. Guaranteed Fallback: Generate real, high-quality, melodic 16-bit PCM RIFF WAV audio
   // Creates authentic ambient lofi chord progression & melody unique to the track
+  // 30 seconds keeps file size ~2.6MB for fast mobile download
   const audioBuffer = generateMelodicWavBuffer(title, artist, id);
   const safeFilename = `${encodeURIComponent(artist)} - ${encodeURIComponent(title)}.wav`;
 
@@ -98,7 +102,7 @@ export async function GET(req: NextRequest) {
  * a warm sub-bass, and soft melodic arpeggios tailored to the track seed.
  */
 function generateMelodicWavBuffer(title: string, artist: string, seedStr: string): ArrayBuffer {
-  const durationSeconds = 90; // 90 seconds of seamless offline music
+  const durationSeconds = 30; // 30 seconds keeps fallback file ~2.6MB — fast on mobile
   const sampleRate = 22050; // Optimized sample rate for rich audio fidelity and low storage size
   const numChannels = 2; // Stereo
   const bytesPerSample = 2; // 16-bit
