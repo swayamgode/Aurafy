@@ -91,8 +91,11 @@ export default function YouTubeAudioPlayer() {
   }, [isLocalOfflineAudio]);
 
   // Initialize YouTube IFrame Player for online streaming
-  const initPlayer = useCallback(() => {
+  const initPlayer = useCallback((videoId?: string) => {
     if (!containerRef.current || !window.YT || !window.YT.Player) return;
+
+    const id = videoId || currentTrack?.youtubeId || "";
+    if (!id) return;
 
     if (playerRef.current) {
       try {
@@ -101,16 +104,13 @@ export default function YouTubeAudioPlayer() {
       playerRef.current = null;
     }
 
-    const videoId = currentTrack?.youtubeId || "";
-    if (!videoId) return;
-
     try {
       playerRef.current = new window.YT.Player(containerRef.current, {
         height: "200",
         width: "200",
-        videoId,
+        videoId: id,
         playerVars: {
-          autoplay: isPlaying && !isLocalOfflineAudio ? 1 : 0,
+          autoplay: 1,
           controls: 0,
           disablekb: 1,
           fs: 0,
@@ -123,21 +123,13 @@ export default function YouTubeAudioPlayer() {
           onReady: (event: any) => {
             try {
               event.target.setVolume(isMuted ? 0 : Math.round(volume * 100));
-              if (isPlaying && !isLocalOfflineAudio) {
+              if (!isLocalOfflineAudio) {
                 event.target.playVideo();
               }
               if (typeof setYouTubePlayer === "function") {
                 setYouTubePlayer(event.target);
               }
               window._ytPlayerInstance = event.target;
-
-              if (pendingTrack.current) {
-                event.target.loadVideoById(pendingTrack.current);
-                if (isPlaying) {
-                  event.target.playVideo();
-                }
-                pendingTrack.current = null;
-              }
             } catch (e) {
               console.warn("[Audio Engine] onReady error:", e);
             }
@@ -159,7 +151,7 @@ export default function YouTubeAudioPlayer() {
     } catch (err) {
       console.warn("[Audio Engine] Init failed:", err);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentTrack?.youtubeId, isLocalOfflineAudio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load YouTube script once
   useEffect(() => {
@@ -178,7 +170,10 @@ export default function YouTubeAudioPlayer() {
 
     window.onYouTubeIframeAPIReady = () => {
       isApiReady.current = true;
-      initPlayer();
+      // If a track was requested before the API loaded, play it now
+      const id = pendingTrack.current || currentTrack?.youtubeId || "";
+      pendingTrack.current = null;
+      if (id) initPlayer(id);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,24 +246,27 @@ export default function YouTubeAudioPlayer() {
   // Sync track change - load online video or reset
   useEffect(() => {
     if (!currentTrack?.youtubeId) return;
+    if (isLocalOfflineAudio) return; // offline audio handled separately above
 
-    if (!isLocalOfflineAudio) {
-      const p = playerRef.current;
-      if (!p || typeof p.loadVideoById !== "function") {
+    const p = playerRef.current;
+
+    if (!p || typeof p.loadVideoById !== "function") {
+      // Player not initialized yet — create it now with this videoId
+      if (isApiReady.current) {
+        initPlayer(currentTrack.youtubeId);
+      } else {
         pendingTrack.current = currentTrack.youtubeId;
-        return;
       }
-
-      try {
-        p.loadVideoById(currentTrack.youtubeId);
-        if (isPlaying) {
-          p.playVideo();
-        }
-      } catch (e) {
-        console.warn("[Audio Engine] loadVideoById error:", e);
-      }
+      return;
     }
-  }, [currentTrack?.youtubeId, isLocalOfflineAudio]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    try {
+      p.loadVideoById(currentTrack.youtubeId);
+      p.playVideo();
+    } catch (e) {
+      console.warn("[Audio Engine] loadVideoById error:", e);
+    }
+  }, [currentTrack?.youtubeId, isLocalOfflineAudio, initPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync volume to audio elements
   useEffect(() => {
