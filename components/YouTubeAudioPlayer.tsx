@@ -91,67 +91,70 @@ export default function YouTubeAudioPlayer() {
   }, [isLocalOfflineAudio]);
 
   // Initialize YouTube IFrame Player for online streaming
-  const initPlayer = useCallback((videoId?: string) => {
-    if (!containerRef.current || !window.YT || !window.YT.Player) return;
+  const initPlayer = useCallback(
+    (videoId?: string) => {
+      if (!containerRef.current || !window.YT || !window.YT.Player) return;
 
-    const id = videoId || currentTrack?.youtubeId || "";
-    if (!id) return;
+      const id = videoId || currentTrack?.youtubeId || "";
+      if (!id) return;
 
-    if (playerRef.current) {
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch (e) {}
+        playerRef.current = null;
+      }
+
       try {
-        playerRef.current.destroy();
-      } catch (e) {}
-      playerRef.current = null;
-    }
-
-    try {
-      playerRef.current = new window.YT.Player(containerRef.current, {
-        height: "200",
-        width: "200",
-        videoId: id,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          modestbranding: 1,
-          rel: 0,
-          playsinline: 1,
-          enablejsapi: 1,
-        },
-        events: {
-          onReady: (event: any) => {
-            try {
-              event.target.setVolume(isMuted ? 0 : Math.round(volume * 100));
-              if (!isLocalOfflineAudio) {
-                event.target.playVideo();
+        playerRef.current = new window.YT.Player(containerRef.current, {
+          height: "200",
+          width: "200",
+          videoId: id,
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            rel: 0,
+            playsinline: 1,
+            enablejsapi: 1,
+          },
+          events: {
+            onReady: (event: any) => {
+              try {
+                event.target.setVolume(isMuted ? 0 : Math.round(volume * 100));
+                if (!isLocalOfflineAudio) {
+                  event.target.playVideo();
+                }
+                if (typeof setYouTubePlayer === "function") {
+                  setYouTubePlayer(event.target);
+                }
+                window._ytPlayerInstance = event.target;
+              } catch (e) {
+                console.warn("[Audio Engine] onReady error:", e);
               }
-              if (typeof setYouTubePlayer === "function") {
-                setYouTubePlayer(event.target);
+            },
+            onStateChange: (event: any) => {
+              if (event.data === 0) {
+                // Video ended -> next track
+                nextTrack();
               }
-              window._ytPlayerInstance = event.target;
-            } catch (e) {
-              console.warn("[Audio Engine] onReady error:", e);
-            }
+            },
+            onError: (event: any) => {
+              console.warn("[Audio Engine] YouTube error code:", event.data);
+              if ([100, 101, 150].includes(event.data)) {
+                setTimeout(nextTrack, 800);
+              }
+            },
           },
-          onStateChange: (event: any) => {
-            if (event.data === 0) {
-              // Video ended -> next track
-              nextTrack();
-            }
-          },
-          onError: (event: any) => {
-            console.warn("[Audio Engine] YouTube error code:", event.data);
-            if ([100, 101, 150].includes(event.data)) {
-              setTimeout(nextTrack, 800);
-            }
-          },
-        },
-      });
-    } catch (err) {
-      console.warn("[Audio Engine] Init failed:", err);
-    }
-  }, [currentTrack?.youtubeId, isLocalOfflineAudio]); // eslint-disable-line react-hooks/exhaustive-deps
+        });
+      } catch (err) {
+        console.warn("[Audio Engine] Init failed:", err);
+      }
+    },
+    [currentTrack?.youtubeId, isLocalOfflineAudio] // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // Load YouTube script once
   useEffect(() => {
@@ -170,7 +173,6 @@ export default function YouTubeAudioPlayer() {
 
     window.onYouTubeIframeAPIReady = () => {
       isApiReady.current = true;
-      // If a track was requested before the API loaded, play it now
       const id = pendingTrack.current || currentTrack?.youtubeId || "";
       pendingTrack.current = null;
       if (id) initPlayer(id);

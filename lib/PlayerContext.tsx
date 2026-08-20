@@ -216,28 +216,33 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [isPlaying, duration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const playTrack = async (track: Track, newQueue?: Track[]) => {
-    // Check if song has local offline blob cached
-    let resolvedTrack = track;
-    try {
-      const offline = await getOfflineTrack(track.youtubeId);
-      if (offline && offline.objectUrl) {
-        resolvedTrack = {
-          ...track,
-          audioUrl: offline.objectUrl,
-        };
-      }
-    } catch {}
-
-    setCurrentTrack(resolvedTrack);
+    // Immediately set track and start playback
+    setCurrentTrack(track);
     setIsPlaying(true);
     setProgress(0);
-    setDuration(resolvedTrack.duration || 210);
+    setDuration(track.duration || 210);
 
     if (newQueue && newQueue.length > 0) {
       setQueue(newQueue);
     } else if (!queue.some((q) => q.youtubeId === track.youtubeId)) {
       setQueue((prev) => [track, ...prev]);
     }
+
+    // Check if song has local offline blob cached and update audioUrl
+    try {
+      const offline = await getOfflineTrack(track.youtubeId);
+      if (offline && offline.objectUrl) {
+        setCurrentTrack({
+          ...track,
+          audioUrl: offline.objectUrl,
+        });
+      }
+    } catch {}
+
+    // Resume audio engine
+    try {
+      window._aurafyResume?.();
+    } catch {}
   };
 
   const togglePlay = () => {

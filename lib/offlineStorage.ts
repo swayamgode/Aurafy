@@ -16,6 +16,9 @@ export interface StoredOfflineTrack {
   sizeBytes: number;
 }
 
+// In-memory object URL cache for instant playback
+const urlCache = new Map<string, string>();
+
 // Open or initialize the IndexedDB instance
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -66,7 +69,14 @@ export async function saveTrackOffline(track: Track, audioBlob: Blob): Promise<v
 
     const request = store.put(record);
 
-    request.onsuccess = () => resolve();
+    request.onsuccess = () => {
+      // Update in-memory cache
+      try {
+        const objectUrl = URL.createObjectURL(audioBlob);
+        urlCache.set(track.youtubeId, objectUrl);
+      } catch {}
+      resolve();
+    };
     request.onerror = () => reject(request.error || new Error("Failed to save track"));
     tx.oncomplete = () => db.close();
   });
@@ -98,7 +108,7 @@ export async function isTrackOffline(youtubeId: string): Promise<boolean> {
 }
 
 /**
- * Read a single record from IndexedDB synchronously (no async inside IDB callbacks)
+ * Read a single record from IndexedDB
  */
 function readRecord(youtubeId: string): Promise<StoredOfflineTrack | null> {
   return new Promise(async (resolve) => {
@@ -120,8 +130,7 @@ function readRecord(youtubeId: string): Promise<StoredOfflineTrack | null> {
 
 /**
  * Get offline audio blob and generate object URL for playback.
- * Auto-heals corrupted/truncated audio blobs.
- * No async operations inside IDB transaction to avoid DB close race conditions.
+ * Instant resolution with memory cache.
  */
 export async function getOfflineTrack(
   youtubeId: string
@@ -129,56 +138,26 @@ export async function getOfflineTrack(
   if (typeof window === "undefined" || !window.indexedDB) return null;
 
   try {
-    // Step 1: Read record outside of async-inside-IDB-callback pattern
     const record = await readRecord(youtubeId);
     if (!record || !record.audioBlob) return null;
 
-    let validBlob = record.audioBlob;
-
-    // Step 2: Repair if blob is corrupted (< 4096 bytes) — do this OUTSIDE any IDB transaction
-    if (validBlob.size < 4096) {
-      try {
-        const repairRes = await fetch(
-          `/api/download?id=${encodeURIComponent(record.youtubeId)}&title=${encodeURIComponent(
-            record.title
-          )}&artist=${encodeURIComponent(record.artist)}`
-        );
-        if (repairRes.ok) {
-          const repairedBlob = await repairRes.blob();
-          if (repairedBlob.size > 4096) {
-            validBlob = repairedBlob;
-            // Save the repaired blob back — fresh DB connection
-            await saveTrackOffline(
-              {
-                youtubeId: record.youtubeId,
-                title: record.title,
-                artist: record.artist,
-                thumbnailUrl: record.thumbnailUrl,
-                duration: record.duration,
-                album: record.album,
-              },
-              repairedBlob
-            );
-          }
-        }
-      } catch (err) {
-        console.warn("[Offline Repair Error]:", err);
-      }
+    let objectUrl = urlCache.get(youtubeId);
+    if (!objectUrl) {
+      objectUrl = URL.createObjectURL(record.audioBlob);
+      urlCache.set(youtubeId, objectUrl);
     }
 
-    // Step 3: Create object URL for HTML5 audio playback
-    const objectUrl = URL.createObjectURL(validBlob);
     return {
       track: {
         youtubeId: record.youtubeId,
         title: record.title,
         artist: record.artist,
         thumbnailUrl: record.thumbnailUrl,
-        duration: record.duration || 90,
+        duration: record.duration || 210,
         album: record.album,
         audioUrl: objectUrl,
       },
-      blob: validBlob,
+      blob: record.audioBlob,
       objectUrl,
     };
   } catch {
@@ -205,9 +184,8 @@ export async function getAllOfflineTracks(): Promise<Track[]> {
           title: r.title,
           artist: r.artist,
           thumbnailUrl: r.thumbnailUrl,
-          duration: r.duration,
+          duration: r.duration || 210,
           album: r.album,
-          // Note: no audioUrl here — playTrack will call getOfflineTrack to get the blob URL
         }));
         resolve(tracks);
       };
@@ -226,6 +204,7 @@ export async function getAllOfflineTracks(): Promise<Track[]> {
 export async function removeOfflineTrack(youtubeId: string): Promise<boolean> {
   if (typeof window === "undefined" || !window.indexedDB) return false;
   try {
+    urlCache.delete(youtubeId);
     const db = await openDB();
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
