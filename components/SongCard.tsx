@@ -109,8 +109,15 @@ export default function SongCard({
       }`}
     >
       <div className="flex items-center space-x-3.5 min-w-0 pr-3">
-        <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-gray-100 shadow-xs">
-          <Image src={track.thumbnailUrl} alt={track.title} fill sizes="48px" className="object-cover" />
+          <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-gray-100 shadow-xs">
+            <Image
+              src={track.thumbnailUrl}
+              alt={track.title}
+              fill
+              sizes="48px"
+              loading="eager"
+              className="object-cover"
+            />
           <div
             className={`absolute inset-0 bg-black/35 flex items-center justify-center transition-opacity ${
               isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"

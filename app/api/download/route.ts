@@ -33,10 +33,13 @@ export async function GET(req: NextRequest) {
     );
 
     if (audioFormats.length > 0) {
-      // Pick highest quality audio stream available
-      const bestAudio = audioFormats[audioFormats.length - 1];
-      if (bestAudio.url) {
-        const streamRes = await fetch(bestAudio.url, {
+      // Prefer m4a / mp4 / mp3 formats (universally supported on iOS & Android) over webm
+      const compatibleFormat =
+        audioFormats.find((f: any) => f.ext === "m4a" || f.ext === "mp4" || f.ext === "mp3") ||
+        audioFormats[audioFormats.length - 1];
+
+      if (compatibleFormat && compatibleFormat.url) {
+        const streamRes = await fetch(compatibleFormat.url, {
           headers: {
             "User-Agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -47,13 +50,13 @@ export async function GET(req: NextRequest) {
         if (streamRes.ok) {
           const arrayBuffer = await streamRes.arrayBuffer();
           if (arrayBuffer.byteLength > 20000) {
-            const ext = bestAudio.ext || "webm";
+            const ext = compatibleFormat.ext || "m4a";
             const contentType =
               ext === "mp4" || ext === "m4a"
                 ? "audio/mp4"
                 : ext === "mp3"
                 ? "audio/mpeg"
-                : "audio/webm";
+                : "audio/wav";
             const safeFilename = `${encodeURIComponent(artist)} - ${encodeURIComponent(title)}.${ext}`;
 
             return new NextResponse(arrayBuffer, {

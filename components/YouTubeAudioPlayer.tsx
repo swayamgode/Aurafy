@@ -216,7 +216,11 @@ export default function YouTubeAudioPlayer() {
           const playPromise = offAudio.play();
           if (playPromise !== undefined) {
             playPromise.catch((err) => {
-              console.warn("[Offline Audio Play Error]:", err);
+              console.warn("[Offline Audio Play Fallback to Streaming]:", err);
+              // Fallback to online YT player if blob format is incompatible
+              try {
+                if (p && typeof p.playVideo === "function") p.playVideo();
+              } catch (e) {}
             });
           }
         } else {
