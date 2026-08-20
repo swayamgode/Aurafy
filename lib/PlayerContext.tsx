@@ -346,7 +346,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const toggleLockScreen = () => setIsLockScreenOpen((prev) => !prev);
   const toggleQueueModal = () => setIsQueueOpen((prev) => !prev);
 
-  // Download song to phone & offline storage
+  // Download song to phone & offline storage (IndexedDB)
   const downloadTrack = async (track: Track): Promise<boolean> => {
     const yId = track.youtubeId;
     if (downloadedIds.has(yId) || downloadingIds.has(yId)) return true;
@@ -365,19 +365,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       const audioBlob = await res.blob();
 
+      if (audioBlob.size < 1000) {
+        throw new Error("Received empty or corrupted audio data");
+      }
+
       // 2. Save into IndexedDB for in-app offline playback
       await saveTrackOffline(track, audioBlob);
-
-      // 3. Trigger native file download to phone's file storage
-      const blobUrl = URL.createObjectURL(audioBlob);
-      const anchor = document.createElement("a");
-      anchor.href = blobUrl;
-      anchor.download = `${track.artist} - ${track.title}.mp3`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
       setDownloadedIds((prev) => new Set(prev).add(yId));
       setDownloadingIds((prev) => {
