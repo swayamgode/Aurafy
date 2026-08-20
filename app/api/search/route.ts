@@ -180,11 +180,11 @@ function buildContextItems(query: string, items: any[]) {
     {
       id: `pl-${encodeURIComponent(q)}`,
       title: `${q.charAt(0).toUpperCase() + q.slice(1)} Mix`,
-      description: `Best of ${q} curated by Aurafy`,
+      description: `Best of ${q} curated by Hue`,
       coverUrl:
         items[0]?.thumbnailUrl ||
         "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?q=80&w=500&auto=format&fit=crop",
-      creator: "Aurafy Mix",
+      creator: "Hue Mix",
       songsCount: items.length,
     },
   ];

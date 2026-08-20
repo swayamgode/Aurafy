@@ -88,7 +88,7 @@ export const TRENDING_PLAYLISTS: Playlist[] = [
     title: "Morning Rush",
     description: "Upbeat tracks to ignite your morning energy",
     coverUrl: "https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=500&auto=format&fit=crop",
-    creator: "Aurafy Editorial",
+    creator: "Hue Editorial",
     songsCount: 34,
   },
   {

@@ -110,7 +110,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: currentTrack.title,
         artist: currentTrack.artist,
-        album: currentTrack.album || "Aurafy",
+        album: currentTrack.album || "Hue",
         artwork: [
           { src: currentTrack.thumbnailUrl, sizes: "512x512", type: "image/jpeg" },
         ],

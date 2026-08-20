@@ -86,7 +86,7 @@ export default function PlaylistDetailsPage() {
         const plObj: Playlist = {
           id: fromConvex._id || fromConvex.id,
           title: fromConvex.title,
-          description: fromConvex.description || "Created with Aurafy",
+          description: fromConvex.description || "Created with Hue",
           coverUrl: fromConvex.coverUrl,
           creator: fromConvex.creator || "You",
           songsCount: fromConvex.songsCount || 0,
@@ -173,7 +173,7 @@ export default function PlaylistDetailsPage() {
             title: `${titleFormatted} Mix`,
             description: `Best tracks curated for ${cleanTerm}`,
             coverUrl: matchedSongs[0]?.thumbnailUrl || "/cover-placeholder.png",
-            creator: "Aurafy Mix",
+            creator: "Hue Mix",
             songsCount: matchedSongs.length,
           });
           setSongs(matchedSongs);
@@ -307,7 +307,7 @@ export default function PlaylistDetailsPage() {
                 {playlist?.title || "My Playlist"}
               </h2>
               <p className="text-xs text-[#5F6368] line-clamp-2">
-                {playlist?.description || "Created with Aurafy"}
+                {playlist?.description || "Created with Hue"}
               </p>
               <div className="flex items-center justify-center sm:justify-start gap-2 pt-1 text-xs text-[#8A8D91] font-semibold">
                 <span>{playlist?.creator || "You"}</span>

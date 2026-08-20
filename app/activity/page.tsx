@@ -157,7 +157,7 @@ export default function ActivityPage() {
               <Sparkles className="w-8 h-8 text-[#D7192F] mx-auto" />
               <h3 className="text-lg font-extrabold text-black">Top 1% Superfan</h3>
               <p className="text-xs text-[#5F6368]">
-                You streamed more Lo-Fi Beats than 99% of Aurafy listeners this month!
+                You streamed more Lo-Fi Beats than 99% of Hue listeners this month!
               </p>
             </div>
           </div>

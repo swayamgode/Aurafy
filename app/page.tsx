@@ -74,7 +74,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen">
-      <AppHeader title="Aurafy" showSearch={true} showProfile={true} />
+      <AppHeader title="Hue" showSearch={true} showProfile={true} />
 
       <div className="px-4 sm:px-6 space-y-8 mt-2">
         {/* Quick Action Navigation Chips */}

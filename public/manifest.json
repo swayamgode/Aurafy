@@ -1,6 +1,6 @@
 {
-  "name": "Aurafy",
-  "short_name": "Aurafy",
+  "name": "Hue",
+  "short_name": "Hue",
   "description": "Discover music, search songs, create playlists and stream seamlessly.",
   "start_url": "/",
   "display": "standalone",

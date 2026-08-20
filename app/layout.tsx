@@ -18,14 +18,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Aurafy — Modern Music Discovery & Streaming",
+  title: "Hue — Modern Music Discovery & Streaming",
   description:
-    "Discover music, search songs and artists, create playlists, and stream seamlessly with Aurafy.",
+    "Discover music, search songs and artists, create playlists, and stream seamlessly with Hue.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Aurafy",
+    title: "Hue",
     startupImage: "/icons/icon-512x512.png",
   },
   icons: {
@@ -61,10 +61,10 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <head>
         {/* PWA Meta Tags */}
-        <meta name="application-name" content="Aurafy" />
+        <meta name="application-name" content="Hue" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Aurafy" />
+        <meta name="apple-mobile-web-app-title" content="Hue" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="msapplication-TileColor" content="#D7192F" />
         <meta name="msapplication-tap-highlight" content="no" />

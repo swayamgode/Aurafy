@@ -11,7 +11,7 @@ export default function OfflinePage() {
       </div>
       <h1 className="text-2xl font-bold text-[#111111] mb-2">You&apos;re Offline</h1>
       <p className="text-[#5F6368] text-sm max-w-xs leading-relaxed">
-        No internet connection. Connect to the internet to search and stream music on Aurafy.
+        No internet connection. Connect to the internet to search and stream music on Hue.
       </p>
       <button
         onClick={() => window.location.reload()}

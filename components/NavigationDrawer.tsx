@@ -54,10 +54,10 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
           <div className="flex items-center justify-between pb-6 border-b border-[#E3E4E6]">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded-full bg-[#D7192F] text-white font-extrabold flex items-center justify-center text-sm shadow-md">
-                A
+                H
               </div>
               <span className="text-xl font-extrabold text-black tracking-tight">
-                Aurafy
+                Hue
               </span>
             </div>
             <button
@@ -138,7 +138,7 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
 
           <div className="text-center">
             <span className="text-[10px] font-semibold text-[#8A8D91]">
-              Aurafy v1.2.0 • Premium Audio
+              Hue v1.2.0 • Premium Audio
             </span>
           </div>
         </div>

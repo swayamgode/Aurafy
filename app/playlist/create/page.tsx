@@ -68,7 +68,7 @@ export default function CreatePlaylistPage() {
     const newPlaylist: Playlist = {
       id: newId,
       title: name.trim(),
-      description: description.trim() || "Created by you on Aurafy",
+      description: description.trim() || "Created by you on Hue",
       coverUrl,
       creator: "You",
       songsCount: songs.length,
