@@ -10,6 +10,7 @@ declare global {
     _ytPlayerInstance: any;
     _aurafyResume: () => void;
     _aurafyPause: () => void;
+    _aurafySeek: (seconds: number) => void;
   }
 }
 
@@ -39,6 +40,55 @@ export default function YouTubeAudioPlayer() {
       (currentTrack.audioUrl.startsWith("blob:") ||
         currentTrack.audioUrl.startsWith("data:"))
   );
+
+  // Global control bridges — declared unconditionally so offline playback and hardware media keys always work
+  useEffect(() => {
+    window._aurafyResume = () => {
+      try {
+        if (silentAudioRef.current && silentAudioRef.current.paused) {
+          silentAudioRef.current.play().catch(() => {});
+        }
+        if (isLocalOfflineAudio && offlineAudioRef.current) {
+          offlineAudioRef.current.play().catch(() => {});
+        } else if (
+          playerRef.current &&
+          typeof playerRef.current.playVideo === "function"
+        ) {
+          playerRef.current.playVideo();
+        }
+      } catch (e) {}
+    };
+
+    window._aurafyPause = () => {
+      try {
+        if (silentAudioRef.current && !silentAudioRef.current.paused) {
+          silentAudioRef.current.pause();
+        }
+        if (offlineAudioRef.current) {
+          offlineAudioRef.current.pause();
+        }
+        if (
+          playerRef.current &&
+          typeof playerRef.current.pauseVideo === "function"
+        ) {
+          playerRef.current.pauseVideo();
+        }
+      } catch (e) {}
+    };
+
+    window._aurafySeek = (seconds: number) => {
+      try {
+        if (isLocalOfflineAudio && offlineAudioRef.current) {
+          offlineAudioRef.current.currentTime = seconds;
+        } else if (
+          playerRef.current &&
+          typeof playerRef.current.seekTo === "function"
+        ) {
+          playerRef.current.seekTo(seconds, true);
+        }
+      } catch (e) {}
+    };
+  }, [isLocalOfflineAudio]);
 
   // Initialize YouTube IFrame Player for online streaming
   const initPlayer = useCallback(() => {
@@ -79,40 +129,6 @@ export default function YouTubeAudioPlayer() {
                 setYouTubePlayer(event.target);
               }
               window._ytPlayerInstance = event.target;
-
-              // Global bridges for phone unlock / background resume
-              window._aurafyResume = () => {
-                try {
-                  if (silentAudioRef.current && silentAudioRef.current.paused) {
-                    silentAudioRef.current.play().catch(() => {});
-                  }
-                  if (offlineAudioRef.current && offlineAudioRef.current.src) {
-                    offlineAudioRef.current.play().catch(() => {});
-                  } else if (
-                    playerRef.current &&
-                    typeof playerRef.current.playVideo === "function"
-                  ) {
-                    playerRef.current.playVideo();
-                  }
-                } catch (e) {}
-              };
-
-              window._aurafyPause = () => {
-                try {
-                  if (silentAudioRef.current && !silentAudioRef.current.paused) {
-                    silentAudioRef.current.pause();
-                  }
-                  if (offlineAudioRef.current) {
-                    offlineAudioRef.current.pause();
-                  }
-                  if (
-                    playerRef.current &&
-                    typeof playerRef.current.pauseVideo === "function"
-                  ) {
-                    playerRef.current.pauseVideo();
-                  }
-                } catch (e) {}
-              };
 
               if (pendingTrack.current) {
                 event.target.loadVideoById(pendingTrack.current);
@@ -193,10 +209,18 @@ export default function YouTubeAudioPlayer() {
       if (offAudio) {
         if (offAudio.src !== currentTrack.audioUrl) {
           offAudio.src = currentTrack.audioUrl;
+          try {
+            offAudio.load();
+          } catch (e) {}
         }
         offAudio.volume = isMuted ? 0 : volume;
         if (isPlaying) {
-          offAudio.play().catch(() => {});
+          const playPromise = offAudio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.warn("[Offline Audio Play Error]:", err);
+            });
+          }
         } else {
           offAudio.pause();
         }
@@ -205,7 +229,12 @@ export default function YouTubeAudioPlayer() {
       // Online YouTube track
       if (offAudio) {
         offAudio.pause();
-        offAudio.removeAttribute("src");
+        if (offAudio.src) {
+          offAudio.removeAttribute("src");
+          try {
+            offAudio.load();
+          } catch (e) {}
+        }
       }
 
       try {

@@ -292,7 +292,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const seekTo = (seconds: number) => {
     setProgress(seconds);
     try {
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+      if (typeof window !== "undefined" && window._aurafySeek) {
+        window._aurafySeek(seconds);
+      } else if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
         ytPlayerRef.current.seekTo(seconds, true);
       }
     } catch (e) {}

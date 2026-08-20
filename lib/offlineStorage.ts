@@ -99,6 +99,7 @@ export async function isTrackOffline(youtubeId: string): Promise<boolean> {
 
 /**
  * Get offline audio blob and generate object URL for playback
+ * Automatically heals corrupted/truncated audio blobs from older versions
  */
 export async function getOfflineTrack(
   youtubeId: string
@@ -107,29 +108,49 @@ export async function getOfflineTrack(
   try {
     const db = await openDB();
     return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
+      const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
       const request = store.get(youtubeId);
 
-      request.onsuccess = () => {
+      request.onsuccess = async () => {
         const record = request.result as StoredOfflineTrack | undefined;
         if (!record || !record.audioBlob) {
           resolve(null);
           return;
         }
 
-        const objectUrl = URL.createObjectURL(record.audioBlob);
+        // Auto-heal corrupted/tiny (< 4096 bytes) blobs from previous failed downloads
+        let validBlob = record.audioBlob;
+        if (validBlob.size < 4096) {
+          try {
+            const repairRes = await fetch(
+              `/api/download?id=${encodeURIComponent(record.youtubeId)}&title=${encodeURIComponent(
+                record.title
+              )}&artist=${encodeURIComponent(record.artist)}`
+            );
+            if (repairRes.ok) {
+              validBlob = await repairRes.blob();
+              record.audioBlob = validBlob;
+              record.sizeBytes = validBlob.size;
+              store.put(record);
+            }
+          } catch (err) {
+            console.warn("[Offline Repair Error]:", err);
+          }
+        }
+
+        const objectUrl = URL.createObjectURL(validBlob);
         resolve({
           track: {
             youtubeId: record.youtubeId,
             title: record.title,
             artist: record.artist,
             thumbnailUrl: record.thumbnailUrl,
-            duration: record.duration,
+            duration: record.duration || 90,
             album: record.album,
             audioUrl: objectUrl,
           },
-          blob: record.audioBlob,
+          blob: validBlob,
           objectUrl,
         });
       };

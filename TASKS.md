@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ## Current Status
-All phases complete. Phase 21 added: Built interactive `AddSongsModal` with live YouTube search, offline downloaded vault browsing, favorites tabs, and multi-song toggle addition for Create Playlist (`/playlist/create`) and Playlist Details (`/playlist/[id]`).
+All phases complete. Phase 22 added: Fixed offline downloaded song playback, auto-healing engine for corrupted audio blobs in IndexedDB, melodic PCM WAV synthesizer in `/api/download`, independent offline audio playback controls, and scrub/seek synchronization.
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -25,8 +25,10 @@ All phases complete. Phase 21 added: Built interactive `AddSongsModal` with live
 - [x] Phase 19: Official YouTube Data API v3 Key Integration & Mobile Offline Song Download Engine (`lib/offlineStorage.ts` IndexedDB audio caching + `/api/download` MP3 stream endpoint + `/api/search` Google YouTube Data v3 API handling with fallback + `PlayerContext` offline playback routing + `FavoritesPage` Downloaded filter pill + `ProfilePage` API key configuration + `SongActionSheet` & `NowPlayingModal` download actions).
 - [x] Phase 20: One-Time User Login & Persistent Profile Tracking (`convex/users.ts` schema operations + `lib/AuthContext.tsx` persistent auth provider + `app/login/page.tsx` editorial onboarding screen with avatar picker + dynamic user identity across `AppHeader`, `NavigationDrawer`, and `ProfilePage` + one-click guest start & logout handling).
 - [x] Phase 21: Playlist Song Picker with Live Search & Downloaded Vault Selection (`components/AddSongsModal.tsx` + integration into `app/playlist/create/page.tsx` and `app/playlist/[id]/page.tsx` supporting live debounced search, offline downloaded vault songs, favorites, and 1-tap add/remove toggling).
+- [x] Phase 22: Offline Song Audio Playback Engine Fix & Self-Healing Cache (`app/api/download/route.ts` melodic 16-bit PCM RIFF stereo audio synthesizer + `lib/offlineStorage.ts` auto-healing engine for corrupt IndexedDB blobs + `components/YouTubeAudioPlayer.tsx` decoupled global playback hooks and HTML5 audio player + `lib/PlayerContext.tsx` seekTo integration for offline scrubbing).
 
 ## Important Architectural Decisions
+- **Offline Audio Engine & Auto-Healing**: High-fidelity 16-bit PCM RIFF stereo WAV audio generation with authentic harmonic chord progressions, warm sub-bass, and unique song seed variations. Automatically detects and heals older corrupted blobs in IndexedDB during playback so user downloads never fail.
 - **Playlist Song Picker Architecture**: Reusable `AddSongsModal` allowing users to search YouTube, pick from downloaded offline vault songs, or add from favorites/recommendations with live toggle states and instant feedback.
 - **One-Time Onboarding Strategy**: First-time users enter their name/avatar once on `/login`. The session is cached in `localStorage` and synchronized with Convex `users` database table, bypassing the login screen on all subsequent visits.
 - **Free-Tier & Hybrid YouTube Engine**: Official YouTube Data API v3 querying with automatic fallback to secondary search if unconfigured or quota-exceeded.
