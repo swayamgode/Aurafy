@@ -11,6 +11,7 @@ import LockScreenPlayer from "@/components/LockScreenPlayer";
 import YouTubeAudioPlayer from "@/components/YouTubeAudioPlayer";
 import { ToastProvider } from "@/lib/ToastContext";
 import DownloadBanner from "@/components/DownloadBanner";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -80,6 +81,7 @@ export default function RootLayout({
 
                   {/* Persistent Global Players & Navigation */}
                   <DownloadBanner />
+                  <PWAInstallBanner />
                   <MiniPlayer />
                   <BottomNavigation />
                   <NowPlayingModal />

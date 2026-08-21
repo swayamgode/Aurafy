@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ### Current Status
-All phases complete. Phase 24 added: Mobile Side-Button Phone Screen Lock Audio Continuity (`components/YouTubeAudioPlayer.tsx` HTML5 audio stream player in `offlineAudioRef` + `MediaSession` lock screen controls & hardware side button integration for continuous background playback when phone is locked).
+All phases complete. Phase 25 added: Mobile-First PWA Tech Stack Transformation (`public/manifest.json` standalone mode + `public/sw.js` offline shell service worker + `components/PWAInstallBanner.tsx` 1-tap mobile installation prompt + iOS Safari & Android Chrome safe-area touch optimization).
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -28,6 +28,7 @@ All phases complete. Phase 24 added: Mobile Side-Button Phone Screen Lock Audio 
 - [x] Phase 22: Offline Song Audio Playback Engine Fix & Self-Healing Cache (`app/api/download/route.ts` melodic 16-bit PCM RIFF stereo audio synthesizer + `lib/offlineStorage.ts` auto-healing engine for corrupt IndexedDB blobs + `components/YouTubeAudioPlayer.tsx` decoupled global playback hooks and HTML5 audio player + `lib/PlayerContext.tsx` seekTo integration for offline scrubbing).
 - [x] Phase 23: Direct Real YouTube MP3 Converter & Downloader Engine (`app/api/download/route.ts` Python `yt-dlp` stream extraction + `lib/PlayerContext.tsx` dual-save to IndexedDB & device folder + `app/import/page.tsx` live 1-tap song converter without forcing URL pasting).
 - [x] Phase 24: Mobile Side-Button Phone Screen Lock Audio Continuity (`components/YouTubeAudioPlayer.tsx` HTML5 `<audio>` engine for online streams and offline blobs to maintain continuous playback on mobile screen lock with hardware side button controls).
+- [x] Phase 25: Mobile-First PWA Tech Stack Transformation (`public/manifest.json` standalone mode + `public/sw.js` offline shell service worker + `components/PWAInstallBanner.tsx` 1-tap mobile installation prompt + iOS Safari & Android Chrome safe-area touch optimization).
 
 ## Important Architectural Decisions
 - **Real YouTube Audio Stream Extraction Engine**: Python `yt-dlp` stream resolver in `/api/download/route.ts` fetching exact, high-fidelity audio streams directly from YouTube/Google servers for any song title or video ID, returning true audio binaries (`audio/mpeg`, `audio/mp4`, `audio/webm`).

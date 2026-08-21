@@ -1,81 +1,45 @@
 {
-  "name": "Hue",
-  "short_name": "Hue",
-  "description": "Discover music, search songs, create playlists and stream seamlessly.",
+  "name": "Aurafy — Modern Music Player",
+  "short_name": "Aurafy",
+  "description": "Premium mobile-first music application for discovering, streaming, and downloading music offline.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F8F9FA",
-  "theme_color": "#D7192F",
+  "theme_color": "#000000",
   "orientation": "portrait",
-  "scope": "/",
-  "lang": "en",
-  "categories": ["music", "entertainment"],
   "icons": [
     {
-      "src": "/icons/icon-72x72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "/icons/icon-96x96.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "/icons/icon-128x128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "/icons/icon-144x144.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "/icons/icon-152x152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "/icons/icon-192x192.png",
+      "src": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=192&auto=format&fit=crop",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "type": "image/jpeg",
+      "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
+      "src": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=512&auto=format&fit=crop",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "type": "image/jpeg",
+      "purpose": "any maskable"
     }
   ],
+  "categories": ["music", "entertainment", "audio"],
   "shortcuts": [
     {
       "name": "Search Music",
       "short_name": "Search",
       "description": "Search songs and artists",
-      "url": "/search",
-      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+      "url": "/search"
     },
     {
-      "name": "My Favorites",
+      "name": "Favorites",
       "short_name": "Favorites",
-      "description": "View your favorite songs",
-      "url": "/favorites",
-      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+      "description": "View saved songs",
+      "url": "/favorites"
+    },
+    {
+      "name": "Music Downloader",
+      "short_name": "Converter",
+      "description": "Convert and download MP3s",
+      "url": "/import"
     }
-  ],
-  "screenshots": [],
-  "prefer_related_applications": false
+  ]
 }
