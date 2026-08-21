@@ -48,9 +48,10 @@ export default function YouTubeAudioPlayer() {
         if (silentAudioRef.current && silentAudioRef.current.paused) {
           silentAudioRef.current.play().catch(() => {});
         }
-        if (isLocalOfflineAudio && offlineAudioRef.current) {
+        if (offlineAudioRef.current) {
           offlineAudioRef.current.play().catch(() => {});
-        } else if (
+        }
+        if (
           playerRef.current &&
           typeof playerRef.current.playVideo === "function"
         ) {
@@ -78,9 +79,10 @@ export default function YouTubeAudioPlayer() {
 
     window._aurafySeek = (seconds: number) => {
       try {
-        if (isLocalOfflineAudio && offlineAudioRef.current) {
+        if (offlineAudioRef.current) {
           offlineAudioRef.current.currentTime = seconds;
-        } else if (
+        }
+        if (
           playerRef.current &&
           typeof playerRef.current.seekTo === "function"
         ) {
@@ -192,62 +194,53 @@ export default function YouTubeAudioPlayer() {
     }
   }, [isPlaying]);
 
-  // Handle local offline audio playback vs online YouTube playback
+  // Handle audio playback engine (HTML5 Audio for screen lock continuity + YouTube IFrame fallback)
   useEffect(() => {
     const offAudio = offlineAudioRef.current;
     const p = playerRef.current;
 
-    if (isLocalOfflineAudio && currentTrack?.audioUrl) {
-      // Pause YouTube player if active
-      try {
-        if (p && typeof p.pauseVideo === "function") p.pauseVideo();
-      } catch (e) {}
+    if (!currentTrack) return;
 
-      // Play local blob in HTML5 Audio element
-      if (offAudio) {
-        if (offAudio.src !== currentTrack.audioUrl) {
-          offAudio.src = currentTrack.audioUrl;
-          try {
-            offAudio.load();
-          } catch (e) {}
-        }
-        offAudio.volume = isMuted ? 0 : volume;
-        if (isPlaying) {
-          const playPromise = offAudio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch((err) => {
-              console.warn("[Offline Audio Play Fallback to Streaming]:", err);
-              // Fallback to online YT player if blob format is incompatible
-              try {
-                if (p && typeof p.playVideo === "function") p.playVideo();
-              } catch (e) {}
-            });
-          }
-        } else {
-          offAudio.pause();
-        }
+    // Determine target audio URL (local offline IndexedDB blob or direct audio stream)
+    const targetAudioSrc = isLocalOfflineAudio && currentTrack.audioUrl
+      ? currentTrack.audioUrl
+      : `/api/download?id=${encodeURIComponent(currentTrack.youtubeId)}&title=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`;
+
+    if (offAudio) {
+      if (offAudio.src !== targetAudioSrc && !offAudio.src.endsWith(encodeURIComponent(currentTrack.youtubeId))) {
+        offAudio.src = targetAudioSrc;
+        try {
+          offAudio.load();
+        } catch (e) {}
       }
-    } else {
-      // Online YouTube track
-      if (offAudio) {
+
+      offAudio.volume = isMuted ? 0 : volume;
+
+      if (isPlaying) {
+        const playPromise = offAudio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn("[HTML5 Audio Play Fallback to YT Iframe]:", err);
+            // Fallback to YouTube IFrame player if HTML5 audio stream fails
+            try {
+              if (p && typeof p.playVideo === "function") p.playVideo();
+            } catch (e) {}
+          });
+        }
+      } else {
         offAudio.pause();
-        if (offAudio.src) {
-          offAudio.removeAttribute("src");
-          try {
-            offAudio.load();
-          } catch (e) {}
-        }
       }
-
-      try {
-        if (isPlaying) {
-          if (p && typeof p.playVideo === "function") p.playVideo();
-        } else {
-          if (p && typeof p.pauseVideo === "function") p.pauseVideo();
-        }
-      } catch (e) {}
     }
-  }, [isPlaying, isLocalOfflineAudio, currentTrack?.audioUrl, volume, isMuted]);
+
+    // Sync YouTube iframe player state as secondary backup
+    try {
+      if (isPlaying) {
+        if (p && typeof p.playVideo === "function") p.playVideo();
+      } else {
+        if (p && typeof p.pauseVideo === "function") p.pauseVideo();
+      }
+    } catch (e) {}
+  }, [isPlaying, isLocalOfflineAudio, currentTrack?.youtubeId, currentTrack?.audioUrl, currentTrack?.title, currentTrack?.artist, volume, isMuted]);
 
   // Sync track change - load online video or reset
   useEffect(() => {
