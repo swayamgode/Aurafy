@@ -201,10 +201,12 @@ export default function YouTubeAudioPlayer() {
 
     if (!currentTrack) return;
 
-    // Determine target audio URL (local offline IndexedDB blob or direct audio stream)
+    // Determine target audio URL:
+    //   - blob:/data: (offline downloaded IndexedDB audio)
+    //   - /api/stream for online tracks (supports HTTP Range 206 so mobile screen lock works)
     const targetAudioSrc = isLocalOfflineAudio && currentTrack.audioUrl
       ? currentTrack.audioUrl
-      : `/api/download?id=${encodeURIComponent(currentTrack.youtubeId)}&title=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`;
+      : `/api/stream?id=${encodeURIComponent(currentTrack.youtubeId)}&title=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`;
 
     if (offAudio) {
       if (offAudio.src !== targetAudioSrc && !offAudio.src.endsWith(encodeURIComponent(currentTrack.youtubeId))) {
@@ -305,11 +307,12 @@ export default function YouTubeAudioPlayer() {
         loop
       />
 
-      {/* Offline HTML5 Audio Player for downloaded songs */}
+      {/* HTML5 Audio for screen-lock background playback (Range-request capable via /api/stream) */}
       <audio
         ref={offlineAudioRef}
         playsInline
-        preload="auto"
+        preload="metadata"
+        crossOrigin="anonymous"
         onEnded={() => nextTrack()}
       />
 
