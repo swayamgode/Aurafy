@@ -50,7 +50,7 @@ interface PlayerContextType {
   closeNowPlaying: () => void;
   toggleLockScreen: () => void;
   toggleQueueModal: () => void;
-  downloadTrack: (track: Track) => Promise<boolean>;
+  downloadTrack: (track: Track, triggerDeviceSave?: boolean) => Promise<boolean>;
   removeDownload: (youtubeId: string) => Promise<boolean>;
   isDownloaded: (youtubeId: string) => boolean;
   // YouTube / Offline player bridge
@@ -352,7 +352,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const toggleQueueModal = () => setIsQueueOpen((prev) => !prev);
 
   // Download song to phone & offline storage (IndexedDB)
-  const downloadTrack = async (track: Track): Promise<boolean> => {
+  const downloadTrack = async (track: Track, triggerDeviceSave: boolean = true): Promise<boolean> => {
     const yId = track.youtubeId;
     if (downloadedIds.has(yId) || downloadingIds.has(yId)) return true;
 
@@ -376,6 +376,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Save into IndexedDB for in-app offline playback
       await saveTrackOffline(track, audioBlob);
+
+      // 3. Trigger direct browser file download to user's device storage
+      if (triggerDeviceSave && typeof window !== "undefined") {
+        try {
+          const type = audioBlob.type || "";
+          const ext = type.includes("webm")
+            ? "webm"
+            : type.includes("mp4") || type.includes("m4a")
+            ? "m4a"
+            : type.includes("wav")
+            ? "wav"
+            : "mp3";
+
+          const blobUrl = URL.createObjectURL(audioBlob);
+          const anchor = document.createElement("a");
+          anchor.href = blobUrl;
+          anchor.download = `${track.artist} - ${track.title}.${ext}`;
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        } catch (e) {
+          console.warn("[Device File Download Warning]:", e);
+        }
+      }
 
       setDownloadedIds((prev) => new Set(prev).add(yId));
       setDownloadingIds((prev) => {

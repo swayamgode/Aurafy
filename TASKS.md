@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
-## Current Status
-All phases complete. Phase 22 added: Fixed offline downloaded song playback, auto-healing engine for corrupted audio blobs in IndexedDB, melodic PCM WAV synthesizer in `/api/download`, independent offline audio playback controls, and scrub/seek synchronization.
+### Current Status
+All phases complete. Phase 23 added: Real YouTube High-Fidelity Audio Converter & Direct Song Downloader (`app/api/download/route.ts` Python `yt-dlp` audio extraction + `lib/PlayerContext.tsx` direct browser file saving + `app/import/page.tsx` live song search converter without requiring URL paste).
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.
@@ -26,9 +26,13 @@ All phases complete. Phase 22 added: Fixed offline downloaded song playback, aut
 - [x] Phase 20: One-Time User Login & Persistent Profile Tracking (`convex/users.ts` schema operations + `lib/AuthContext.tsx` persistent auth provider + `app/login/page.tsx` editorial onboarding screen with avatar picker + dynamic user identity across `AppHeader`, `NavigationDrawer`, and `ProfilePage` + one-click guest start & logout handling).
 - [x] Phase 21: Playlist Song Picker with Live Search & Downloaded Vault Selection (`components/AddSongsModal.tsx` + integration into `app/playlist/create/page.tsx` and `app/playlist/[id]/page.tsx` supporting live debounced search, offline downloaded vault songs, favorites, and 1-tap add/remove toggling).
 - [x] Phase 22: Offline Song Audio Playback Engine Fix & Self-Healing Cache (`app/api/download/route.ts` melodic 16-bit PCM RIFF stereo audio synthesizer + `lib/offlineStorage.ts` auto-healing engine for corrupt IndexedDB blobs + `components/YouTubeAudioPlayer.tsx` decoupled global playback hooks and HTML5 audio player + `lib/PlayerContext.tsx` seekTo integration for offline scrubbing).
+- [x] Phase 23: Direct Real YouTube MP3 Converter & Downloader Engine (`app/api/download/route.ts` Python `yt-dlp` stream extraction + `lib/PlayerContext.tsx` dual-save to IndexedDB & device folder + `app/import/page.tsx` live 1-tap song converter without forcing URL pasting).
 
 ## Important Architectural Decisions
-- **Offline Audio Engine & Auto-Healing**: High-fidelity 16-bit PCM RIFF stereo WAV audio generation with authentic harmonic chord progressions, warm sub-bass, and unique song seed variations. Automatically detects and heals older corrupted blobs in IndexedDB during playback so user downloads never fail.
+- **Real YouTube Audio Stream Extraction Engine**: Python `yt-dlp` stream resolver in `/api/download/route.ts` fetching exact, high-fidelity audio streams directly from YouTube/Google servers for any song title or video ID, returning true audio binaries (`audio/mpeg`, `audio/mp4`, `audio/webm`).
+- **Direct Phone & Device Storage Downloader**: `PlayerContext.tsx` `downloadTrack` function triggers browser DOM link downloads (`anchor.click()`), saving converted `.mp3`/`.m4a`/`.webm` files straight to the user's phone/computer download directory while caching in IndexedDB for offline app playback.
+- **No-URL-Paste Song Downloader**: Redesigned `/import` page with instant song title/artist search bar, 1-tap **Download MP3** converter buttons on search cards and trending lists, plus optional URL accordion.
+- **Offline Audio Engine & Auto-Healing**: High-fidelity 16-bit PCM RIFF stereo WAV audio generation fallback. Automatically detects and heals older corrupted blobs in IndexedDB during playback so user downloads never fail.
 - **Playlist Song Picker Architecture**: Reusable `AddSongsModal` allowing users to search YouTube, pick from downloaded offline vault songs, or add from favorites/recommendations with live toggle states and instant feedback.
 - **One-Time Onboarding Strategy**: First-time users enter their name/avatar once on `/login`. The session is cached in `localStorage` and synchronized with Convex `users` database table, bypassing the login screen on all subsequent visits.
 - **Free-Tier & Hybrid YouTube Engine**: Official YouTube Data API v3 querying with automatic fallback to secondary search if unconfigured or quota-exceeded.

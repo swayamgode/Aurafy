@@ -1,15 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
-import { YtDlp } from "ytdlp-nodejs";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
-// Public audio stream endpoints as secondary proxies
+const execFileAsync = promisify(execFile);
+
+// Extract direct YouTube audio stream URL via Python yt-dlp
+async function getAudioStreamUrlWithPython(idOrQuery: string): Promise<{ url: string; ext: string } | null> {
+  const isVideoId = /^[a-zA-Z0-9_-]{11}$/.test(idOrQuery);
+  const target = isVideoId ? `https://www.youtube.com/watch?v=${idOrQuery}` : `ytsearch1:${idOrQuery}`;
+
+  const pythonScript = `
+import yt_dlp, sys, json
+target = sys.argv[1]
+ydl_opts = {
+    'format': 'bestaudio/best',
+    'quiet': True,
+    'no_warnings': True,
+}
+with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    info = ydl.extract_info(target, download=False)
+    if 'entries' in info and len(info['entries']) > 0:
+        info = info['entries'][0]
+    stream_url = info.get('url')
+    ext = info.get('ext') or 'mp3'
+    print(json.dumps({'url': stream_url, 'ext': ext}))
+`;
+
+  try {
+    const { stdout } = await execFileAsync("python", ["-c", pythonScript, target], {
+      timeout: 14000,
+    });
+    const parsed = JSON.parse(stdout.trim());
+    if (parsed && parsed.url) {
+      return parsed;
+    }
+  } catch (err: any) {
+    console.warn("[/api/download] Python yt-dlp extraction warning:", err?.message || err);
+  }
+  return null;
+}
+
+// Public audio stream endpoints as secondary fallback proxies
 const AUDIO_ENDPOINTS = [
   (id: string) => `https://inv.nadeko.net/latest_version?id=${id}&itag=140`,
   (id: string) => `https://invidious.privacydev.net/latest_version?id=${id}&itag=140`,
   (id: string) => `https://yt.artemislena.eu/latest_version?id=${id}&itag=140`,
-  (id: string) => `https://y.com.sb/latest_version?id=${id}&itag=140`,
-  (id: string) => `https://invidious.nerdvpn.de/latest_version?id=${id}&itag=140`,
-  (id: string) => `https://pipedapi.tokhmi.xyz/streams/${id}`,
-  (id: string) => `https://pipedapi.kavin.rocks/streams/${id}`,
 ];
 
 export async function GET(req: NextRequest) {
@@ -19,60 +54,49 @@ export async function GET(req: NextRequest) {
   const artist = searchParams.get("artist") || "Artist";
 
   if (!id) {
-    return NextResponse.json({ error: "Missing video id" }, { status: 400 });
+    return NextResponse.json({ error: "Missing video id or search query" }, { status: 400 });
   }
 
-  // 1. Primary Engine: High-fidelity direct YouTube audio extraction via yt-dlp
+  // 1. Primary Engine: High-fidelity direct YouTube audio extraction via Python yt-dlp
   try {
-    const ytdlp = new YtDlp();
-    const info: any = await ytdlp.getInfoAsync(`https://www.youtube.com/watch?v=${id}`);
-    const audioFormats = (info.formats || []).filter(
-      (f: any) =>
-        f.resolution === "audio only" ||
-        (f.acodec && f.acodec !== "none" && (!f.vcodec || f.vcodec === "none"))
-    );
+    const targetQuery = id.length >= 11 ? id : `${artist} ${title}`;
+    const result = await getAudioStreamUrlWithPython(targetQuery);
 
-    if (audioFormats.length > 0) {
-      // Prefer m4a / mp4 / mp3 formats (universally supported on iOS & Android) over webm
-      const compatibleFormat =
-        audioFormats.find((f: any) => f.ext === "m4a" || f.ext === "mp4" || f.ext === "mp3") ||
-        audioFormats[audioFormats.length - 1];
+    if (result && result.url) {
+      const streamRes = await fetch(result.url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        },
+        signal: AbortSignal.timeout(15000),
+      });
 
-      if (compatibleFormat && compatibleFormat.url) {
-        const streamRes = await fetch(compatibleFormat.url, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-          },
-          signal: AbortSignal.timeout(15000),
-        });
+      if (streamRes.ok) {
+        const arrayBuffer = await streamRes.arrayBuffer();
+        if (arrayBuffer.byteLength > 20000) {
+          const rawExt = (result.ext || "webm").toLowerCase();
+          const ext = rawExt === "m4a" ? "m4a" : rawExt === "webm" ? "webm" : "mp3";
+          const contentType =
+            ext === "m4a" || rawExt === "mp4"
+              ? "audio/mp4"
+              : ext === "webm"
+              ? "audio/webm"
+              : "audio/mpeg";
+          const safeFilename = `${encodeURIComponent(artist)} - ${encodeURIComponent(title)}.${ext}`;
 
-        if (streamRes.ok) {
-          const arrayBuffer = await streamRes.arrayBuffer();
-          if (arrayBuffer.byteLength > 20000) {
-            const ext = compatibleFormat.ext || "m4a";
-            const contentType =
-              ext === "mp4" || ext === "m4a"
-                ? "audio/mp4"
-                : ext === "mp3"
-                ? "audio/mpeg"
-                : "audio/wav";
-            const safeFilename = `${encodeURIComponent(artist)} - ${encodeURIComponent(title)}.${ext}`;
-
-            return new NextResponse(arrayBuffer, {
-              status: 200,
-              headers: {
-                "Content-Type": contentType,
-                "Content-Disposition": `attachment; filename="${safeFilename}"`,
-                "Cache-Control": "public, max-age=31536000, immutable",
-              },
-            });
-          }
+          return new NextResponse(arrayBuffer, {
+            status: 200,
+            headers: {
+              "Content-Type": contentType,
+              "Content-Disposition": `attachment; filename="${safeFilename}"`,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+          });
         }
       }
     }
   } catch (err: any) {
-    console.warn("[/api/download] yt-dlp extraction warning:", err?.message || err);
+    console.warn("[/api/download] Primary Python extraction error:", err?.message || err);
   }
 
   // 2. Secondary Engine: Public audio stream proxies
@@ -84,38 +108,12 @@ export async function GET(req: NextRequest) {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         },
-        signal: AbortSignal.timeout(7000),
+        signal: AbortSignal.timeout(6000),
       });
 
       if (res.ok) {
         const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("json")) {
-          const data = await res.json();
-          const audioStreams = (data.audioStreams || []).sort(
-            (a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0)
-          );
-          if (audioStreams.length > 0 && audioStreams[0].url) {
-            const streamRes = await fetch(audioStreams[0].url, {
-              signal: AbortSignal.timeout(10000),
-            });
-            if (streamRes.ok) {
-              const arrayBuffer = await streamRes.arrayBuffer();
-              const safeFilename = `${encodeURIComponent(artist)} - ${encodeURIComponent(title)}.mp3`;
-              return new NextResponse(arrayBuffer, {
-                status: 200,
-                headers: {
-                  "Content-Type": "audio/mpeg",
-                  "Content-Disposition": `attachment; filename="${safeFilename}"`,
-                  "Cache-Control": "public, max-age=31536000, immutable",
-                },
-              });
-            }
-          }
-        } else if (
-          contentType.includes("audio") ||
-          contentType.includes("video") ||
-          contentType.includes("octet-stream")
-        ) {
+        if (contentType.includes("audio") || contentType.includes("video") || contentType.includes("octet-stream")) {
           const arrayBuffer = await res.arrayBuffer();
           if (arrayBuffer.byteLength > 20000) {
             const safeFilename = `${encodeURIComponent(artist)} - ${encodeURIComponent(title)}.mp3`;
