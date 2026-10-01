@@ -4,7 +4,10 @@ import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
 
-// Cache stream URLs for 25 minutes (YouTube URLs expire ~6 hours but play it safe)
+// Force dynamic — never cache at Next.js edge level (audio URLs are time-limited)
+export const dynamic = "force-dynamic";
+
+// Cache extracted YouTube CDN URLs for 50 minutes (they expire ~6h, so this is safe)
 const urlCache = new Map<string, { url: string; ext: string; expiresAt: number }>();
 
 const PYTHON_EXTRACT = `
@@ -29,7 +32,7 @@ async function resolveStreamUrl(
 ): Promise<{ url: string; ext: string } | null> {
   try {
     const { stdout } = await execFileAsync("python", ["-c", PYTHON_EXTRACT, target], {
-      timeout: 14000,
+      timeout: 20000,
     });
     const parsed = JSON.parse(stdout.trim());
     if (parsed?.url?.startsWith("http")) return parsed;
@@ -37,6 +40,18 @@ async function resolveStreamUrl(
     console.warn("[/api/stream] yt-dlp error:", err?.message?.slice(0, 120));
   }
   return null;
+}
+
+// CORS preflight handler
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Range, Content-Type",
+    },
+  });
 }
 
 export async function GET(req: NextRequest) {
@@ -57,32 +72,32 @@ export async function GET(req: NextRequest) {
 
   const cacheKey = isVideoId ? id : `${artist}-${title}`;
 
-  // 1. Check cache
+  // 1. Check cache (saves a yt-dlp call when auto-buffer fetches the same track)
   const cached = urlCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    // Proxy the request to the cached Google CDN URL, forwarding Range headers
     return proxyAudioStream(req, cached.url, cached.ext);
   }
 
-  // 2. Extract fresh URL
+  // 2. Extract fresh URL via yt-dlp
   const result = await resolveStreamUrl(target);
 
   if (result?.url) {
     urlCache.set(cacheKey, {
       url: result.url,
       ext: result.ext,
-      expiresAt: Date.now() + 25 * 60 * 1000,
+      expiresAt: Date.now() + 50 * 60 * 1000,
     });
     return proxyAudioStream(req, result.url, result.ext);
   }
 
-  // 3. Nothing worked
   return NextResponse.json({ error: "Stream extraction failed" }, { status: 503 });
 }
 
 /**
- * Proxy the audio stream with full Range-request support.
- * This is what allows mobile browsers to seek and play in background during screen lock.
+ * Proxy audio from YouTube CDN with full Range-request support.
+ * This endpoint serves TWO purposes:
+ *   1. Real-time streaming for initial playback
+ *   2. Full-blob fetch by the auto-buffer engine (for lock-screen-safe playback)
  */
 async function proxyAudioStream(
   req: NextRequest,
@@ -97,7 +112,7 @@ async function proxyAudioStream(
         "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
       ...(rangeHeader ? { Range: rangeHeader } : {}),
     },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(30000),
   });
 
   const contentType =
@@ -110,14 +125,11 @@ async function proxyAudioStream(
   const responseHeaders: Record<string, string> = {
     "Content-Type": upstream.headers.get("content-type") || contentType,
     "Accept-Ranges": "bytes",
-    // Allow mobile browsers to cache stream chunks for background playback
     "Cache-Control": "public, max-age=0, must-revalidate",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Range",
-    "X-Content-Type-Options": "nosniff",
   };
 
-  // Forward range-related headers from upstream
   const contentRange = upstream.headers.get("content-range");
   const contentLength = upstream.headers.get("content-length");
   if (contentRange) responseHeaders["Content-Range"] = contentRange;

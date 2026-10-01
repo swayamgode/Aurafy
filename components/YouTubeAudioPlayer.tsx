@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-// 44-byte silent WAV audio data URI to keep the mobile OS AudioSession alive during screen lock
+// 44-byte silent WAV — keeps the mobile OS AudioSession alive while screen is locked
 const SILENT_AUDIO_CARRIER =
   "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
@@ -32,13 +32,18 @@ export default function YouTubeAudioPlayer() {
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const silentAudioRef = useRef<HTMLAudioElement>(null);
-  const offlineAudioRef = useRef<HTMLAudioElement>(null);
+  const mainAudioRef = useRef<HTMLAudioElement>(null);
   const isApiReady = useRef<boolean>(false);
   const pendingTrack = useRef<string | null>(null);
-  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const noSleepNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const isPlayingRef = useRef<boolean>(false);
+
+  // Auto-buffer: track currently being buffered
+  const autoBufferAbortRef = useRef<AbortController | null>(null);
+  const autoBlobUrlRef = useRef<string | null>(null);
+  const currentBlobTrackId = useRef<string | null>(null);
+
+  // Wake lock ref (typed as any since WakeLockSentinel may not be in TS lib)
+  const wakeLockRef = useRef<any>(null);
 
   const isLocalOfflineAudio = Boolean(
     currentTrack?.audioUrl &&
@@ -46,45 +51,7 @@ export default function YouTubeAudioPlayer() {
         currentTrack.audioUrl.startsWith("data:"))
   );
 
-  // ── Web Audio API no-sleep trick (keeps iOS/Android audio session alive) ──
-  // Creates a silent oscillator so the browser doesn't suspend audio entirely
-  const startNoSleepAudio = useCallback(() => {
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
-      // Create a 1-second silent buffer and loop it forever
-      if (!noSleepNodeRef.current) {
-        const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.loop = true;
-        source.connect(ctx.destination);
-        source.start(0);
-        noSleepNodeRef.current = source;
-      }
-    } catch (e) {}
-  }, []);
-
-  const stopNoSleepAudio = useCallback(() => {
-    try {
-      if (noSleepNodeRef.current) {
-        noSleepNodeRef.current.stop();
-        noSleepNodeRef.current.disconnect();
-        noSleepNodeRef.current = null;
-      }
-      if (audioCtxRef.current) {
-        audioCtxRef.current.suspend().catch(() => {});
-      }
-    } catch (e) {}
-  }, []);
-
-  // ── Screen Wake Lock — prevents display sleep mid-song ──
+  // ── Wake Lock helpers ────────────────────────────────────────────────────────
   const acquireWakeLock = useCallback(async () => {
     try {
       if ("wakeLock" in navigator && !wakeLockRef.current) {
@@ -93,104 +60,156 @@ export default function YouTubeAudioPlayer() {
           wakeLockRef.current = null;
         });
       }
-    } catch (e) {}
+    } catch (_) {}
   }, []);
 
   const releaseWakeLock = useCallback(() => {
     try {
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release().catch(() => {});
-        wakeLockRef.current = null;
-      }
-    } catch (e) {}
+      wakeLockRef.current?.release().catch(() => {});
+      wakeLockRef.current = null;
+    } catch (_) {}
   }, []);
 
-  // Re-acquire wake lock when page becomes visible again (released on hide)
+  // Re-acquire wake lock when page becomes visible (it's released automatically on hide)
   useEffect(() => {
-    const onVisibility = async () => {
+    const onVisible = async () => {
       if (document.visibilityState === "visible" && isPlayingRef.current) {
         await acquireWakeLock();
-        // If audio stalled while hidden, reload and play it from last position
-        const audio = offlineAudioRef.current;
+        // If main audio stalled while hidden, try to resume it
+        const audio = mainAudioRef.current;
         if (audio && (audio.paused || audio.readyState < 2)) {
-          const savedTime = audio.currentTime;
-          try {
-            audio.load();
-            audio.currentTime = savedTime;
-            await audio.play();
-          } catch (e) {}
+          audio.play().catch(() => {});
         }
-        // Resume silent carrier too
         const silent = silentAudioRef.current;
-        if (silent && silent.paused) {
-          silent.play().catch(() => {});
-        }
+        if (silent && silent.paused) silent.play().catch(() => {});
       }
     };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [acquireWakeLock]);
 
-  // Global control bridges — declared unconditionally so offline playback and hardware media keys always work
+  // ── AUTO-BUFFER: the KEY fix for lock screen audio ──────────────────────────
+  // HTTP streams die when screen locks. Blob URLs live in memory — they NEVER need
+  // a network connection, so they keep playing even with screen locked.
+  // Strategy:
+  //   1. Start playing from /api/stream immediately (so audio starts without delay)
+  //   2. Simultaneously, fetch the full audio blob in the background
+  //   3. Once blob is ready, seamlessly switch the audio element src to the blob URL
+  //   4. From that point on, audio works reliably on lock screen
+  const autoBufferTrack = useCallback(
+    async (youtubeId: string, title: string, artist: string) => {
+      // Cancel any in-progress buffer for a different track
+      if (autoBufferAbortRef.current) {
+        autoBufferAbortRef.current.abort();
+      }
+      // Revoke previous blob to free memory
+      if (autoBlobUrlRef.current && currentBlobTrackId.current !== youtubeId) {
+        URL.revokeObjectURL(autoBlobUrlRef.current);
+        autoBlobUrlRef.current = null;
+        currentBlobTrackId.current = null;
+      }
+      // Already have blob for this track — just make sure audio is using it
+      if (currentBlobTrackId.current === youtubeId && autoBlobUrlRef.current) {
+        const audio = mainAudioRef.current;
+        if (audio && !audio.src.startsWith("blob:")) {
+          const pos = audio.currentTime;
+          const playing = !audio.paused;
+          audio.src = autoBlobUrlRef.current;
+          audio.currentTime = pos;
+          if (playing) audio.play().catch(() => {});
+        }
+        return;
+      }
+
+      const abort = new AbortController();
+      autoBufferAbortRef.current = abort;
+
+      try {
+        // Slight delay — let the stream start playing first so user hears audio instantly
+        await new Promise((res) => setTimeout(res, 800));
+        if (abort.signal.aborted) return;
+
+        // Fetch the full audio from /api/stream as a complete blob
+        // (The URL is already cached from the initial stream request, so no double yt-dlp call)
+        const streamUrl = `/api/stream?id=${encodeURIComponent(youtubeId)}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
+        const res = await fetch(streamUrl, { signal: abort.signal });
+
+        if (!res.ok || abort.signal.aborted) return;
+
+        const blob = await res.blob();
+        if (abort.signal.aborted || blob.size < 5000) return;
+
+        const blobUrl = URL.createObjectURL(blob);
+        autoBlobUrlRef.current = blobUrl;
+        currentBlobTrackId.current = youtubeId;
+
+        // Seamlessly switch the audio element to the memory-resident blob URL
+        const audio = mainAudioRef.current;
+        if (audio && !abort.signal.aborted) {
+          const savedPos = audio.currentTime;
+          const wasPlaying = !audio.paused;
+
+          audio.src = blobUrl;
+          audio.load();
+
+          // Restore position after load
+          const onCanPlay = () => {
+            audio.removeEventListener("canplay", onCanPlay);
+            audio.currentTime = savedPos;
+            if (wasPlaying) {
+              audio.play().catch(() => {});
+            }
+          };
+          audio.addEventListener("canplay", onCanPlay);
+        }
+
+        console.log("[Audio] ✓ Switched to blob URL — lock-screen-safe playback active");
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          console.warn("[Audio] Auto-buffer failed:", err?.message);
+        }
+      }
+    },
+    []
+  );
+
+  // ── Global control bridges ───────────────────────────────────────────────────
   useEffect(() => {
     window._aurafyResume = () => {
       try {
-        startNoSleepAudio();
-        if (silentAudioRef.current && silentAudioRef.current.paused) {
+        if (silentAudioRef.current?.paused) {
           silentAudioRef.current.play().catch(() => {});
         }
-        if (offlineAudioRef.current) {
-          offlineAudioRef.current.play().catch(() => {});
-        }
-        if (
-          playerRef.current &&
-          typeof playerRef.current.playVideo === "function"
-        ) {
-          playerRef.current.playVideo();
+        if (mainAudioRef.current) {
+          mainAudioRef.current.play().catch(() => {});
         }
         acquireWakeLock();
-      } catch (e) {}
+      } catch (_) {}
     };
 
     window._aurafyPause = () => {
       try {
-        stopNoSleepAudio();
+        silentAudioRef.current?.pause();
+        mainAudioRef.current?.pause();
         releaseWakeLock();
-        if (silentAudioRef.current && !silentAudioRef.current.paused) {
-          silentAudioRef.current.pause();
-        }
-        if (offlineAudioRef.current) {
-          offlineAudioRef.current.pause();
-        }
-        if (
-          playerRef.current &&
-          typeof playerRef.current.pauseVideo === "function"
-        ) {
-          playerRef.current.pauseVideo();
-        }
-      } catch (e) {}
+      } catch (_) {}
     };
 
     window._aurafySeek = (seconds: number) => {
       try {
-        if (offlineAudioRef.current) {
-          offlineAudioRef.current.currentTime = seconds;
+        if (mainAudioRef.current) {
+          mainAudioRef.current.currentTime = seconds;
         }
-        if (
-          playerRef.current &&
-          typeof playerRef.current.seekTo === "function"
-        ) {
+        if (playerRef.current?.seekTo) {
           playerRef.current.seekTo(seconds, true);
         }
-      } catch (e) {}
+      } catch (_) {}
     };
 
-    window._aurafyGetTime = () => {
-      return offlineAudioRef.current?.currentTime ?? 0;
-    };
-  }, [isLocalOfflineAudio, startNoSleepAudio, stopNoSleepAudio, acquireWakeLock, releaseWakeLock]);
+    window._aurafyGetTime = () => mainAudioRef.current?.currentTime ?? 0;
+  }, [acquireWakeLock, releaseWakeLock]);
 
-  // Initialize YouTube IFrame Player for online streaming
+  // ── Initialize YouTube IFrame Player (MUTED — used only for track-end detection) ──
   const initPlayer = useCallback(
     (videoId?: string) => {
       if (!containerRef.current || !window.YT || !window.YT.Player) return;
@@ -198,17 +217,13 @@ export default function YouTubeAudioPlayer() {
       const id = videoId || currentTrack?.youtubeId || "";
       if (!id) return;
 
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {}
-        playerRef.current = null;
-      }
+      try { playerRef.current?.destroy(); } catch (_) {}
+      playerRef.current = null;
 
       try {
         playerRef.current = new window.YT.Player(containerRef.current, {
-          height: "200",
-          width: "200",
+          height: "1",
+          width: "1",
           videoId: id,
           playerVars: {
             autoplay: 1,
@@ -219,30 +234,25 @@ export default function YouTubeAudioPlayer() {
             rel: 0,
             playsinline: 1,
             enablejsapi: 1,
+            mute: 1, // ← MUTED: HTML5 audio is the actual audio source
           },
           events: {
             onReady: (event: any) => {
               try {
-                event.target.setVolume(isMuted ? 0 : Math.round(volume * 100));
-                if (!isLocalOfflineAudio) {
-                  event.target.playVideo();
-                }
+                event.target.setVolume(0); // always muted
+                event.target.mute();
+                if (!isLocalOfflineAudio) event.target.playVideo();
                 if (typeof setYouTubePlayer === "function") {
                   setYouTubePlayer(event.target);
                 }
                 window._ytPlayerInstance = event.target;
-              } catch (e) {
-                console.warn("[Audio Engine] onReady error:", e);
-              }
+              } catch (_) {}
             },
             onStateChange: (event: any) => {
-              if (event.data === 0) {
-                // Video ended -> next track
-                nextTrack();
-              }
+              // YT.PlayerState.ENDED = 0
+              if (event.data === 0) nextTrack();
             },
             onError: (event: any) => {
-              console.warn("[Audio Engine] YouTube error code:", event.data);
               if ([100, 101, 150].includes(event.data)) {
                 setTimeout(nextTrack, 800);
               }
@@ -250,27 +260,25 @@ export default function YouTubeAudioPlayer() {
           },
         });
       } catch (err) {
-        console.warn("[Audio Engine] Init failed:", err);
+        console.warn("[Audio Engine] YT init failed:", err);
       }
     },
     [currentTrack?.youtubeId, isLocalOfflineAudio] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  // Load YouTube script once
+  // Load YouTube IFrame API script once
   useEffect(() => {
-    if (window.YT && window.YT.Player) {
+    if (window.YT?.Player) {
       isApiReady.current = true;
       initPlayer();
       return;
     }
-
     if (!document.getElementById("yt-iframe-api")) {
       const tag = document.createElement("script");
       tag.id = "yt-iframe-api";
       tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
     }
-
     window.onYouTubeIframeAPIReady = () => {
       isApiReady.current = true;
       const id = pendingTrack.current || currentTrack?.youtubeId || "";
@@ -279,83 +287,66 @@ export default function YouTubeAudioPlayer() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep mobile OS AudioSession alive using silent audio carrier + Web Audio no-sleep
+  // ── Silent carrier + Wake Lock management ────────────────────────────────────
   useEffect(() => {
     isPlayingRef.current = isPlaying;
-    const silentAudio = silentAudioRef.current;
-    if (!silentAudio) return;
+    const silent = silentAudioRef.current;
+    if (!silent) return;
 
     if (isPlaying) {
-      silentAudio.volume = 0.001;
-      silentAudio.play().catch(() => {});
-      startNoSleepAudio();
+      silent.volume = 0.001;
+      silent.play().catch(() => {});
       acquireWakeLock();
     } else {
-      silentAudio.pause();
-      stopNoSleepAudio();
+      silent.pause();
       releaseWakeLock();
     }
-  }, [isPlaying, startNoSleepAudio, stopNoSleepAudio, acquireWakeLock, releaseWakeLock]);
+  }, [isPlaying, acquireWakeLock, releaseWakeLock]);
 
-  // Handle audio playback engine (HTML5 Audio for screen lock continuity + YouTube IFrame fallback)
+  // ── Main audio playback engine ───────────────────────────────────────────────
   useEffect(() => {
-    const offAudio = offlineAudioRef.current;
-    const p = playerRef.current;
+    const audio = mainAudioRef.current;
+    if (!currentTrack || !audio) return;
 
-    if (!currentTrack) return;
-
-    // Determine target audio URL:
-    //   - blob:/data: (offline downloaded IndexedDB audio)
-    //   - /api/stream for online tracks (supports HTTP Range 206 so mobile screen lock works)
-    const targetAudioSrc = isLocalOfflineAudio && currentTrack.audioUrl
+    // Determine audio source:
+    //   • offline blob/data URI → play directly (already lock-screen-safe)
+    //   • online track → stream from /api/stream (will auto-switch to blob shortly)
+    const targetSrc = isLocalOfflineAudio && currentTrack.audioUrl
       ? currentTrack.audioUrl
       : `/api/stream?id=${encodeURIComponent(currentTrack.youtubeId)}&title=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`;
 
-    if (offAudio) {
-      if (offAudio.src !== targetAudioSrc && !offAudio.src.endsWith(encodeURIComponent(currentTrack.youtubeId))) {
-        offAudio.src = targetAudioSrc;
-        try {
-          offAudio.load();
-        } catch (e) {}
-      }
+    // Only update src if track actually changed
+    const srcChanged =
+      !audio.src.includes(encodeURIComponent(currentTrack.youtubeId)) &&
+      !audio.src.startsWith("blob:") &&
+      audio.src !== targetSrc;
 
-      offAudio.volume = isMuted ? 0 : volume;
-
-      if (isPlaying) {
-        const playPromise = offAudio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.warn("[HTML5 Audio Play Fallback to YT Iframe]:", err);
-            // Fallback to YouTube IFrame player if HTML5 audio stream fails
-            try {
-              if (p && typeof p.playVideo === "function") p.playVideo();
-            } catch (e) {}
-          });
-        }
-      } else {
-        offAudio.pause();
-      }
+    if (srcChanged || !audio.src) {
+      audio.src = targetSrc;
+      try { audio.load(); } catch (_) {}
     }
 
-    // Sync YouTube iframe player state as secondary backup
-    try {
-      if (isPlaying) {
-        if (p && typeof p.playVideo === "function") p.playVideo();
-      } else {
-        if (p && typeof p.pauseVideo === "function") p.pauseVideo();
-      }
-    } catch (e) {}
+    audio.volume = isMuted ? 0 : volume;
+
+    if (isPlaying) {
+      audio.play().catch(() => {});
+    } else {
+      audio.pause();
+    }
   }, [isPlaying, isLocalOfflineAudio, currentTrack?.youtubeId, currentTrack?.audioUrl, currentTrack?.title, currentTrack?.artist, volume, isMuted]);
 
-  // Sync track change - load online video or reset
+  // ── Track change: load new YouTube video + trigger auto-buffer ───────────────
   useEffect(() => {
     if (!currentTrack?.youtubeId) return;
-    if (isLocalOfflineAudio) return; // offline audio handled separately above
 
+    // Auto-buffer for online tracks (offline tracks already have blob URLs)
+    if (!isLocalOfflineAudio) {
+      autoBufferTrack(currentTrack.youtubeId, currentTrack.title, currentTrack.artist);
+    }
+
+    // Update YouTube iframe (muted, just for session/track-end sync)
     const p = playerRef.current;
-
     if (!p || typeof p.loadVideoById !== "function") {
-      // Player not initialized yet — create it now with this videoId
       if (isApiReady.current) {
         initPlayer(currentTrack.youtubeId);
       } else {
@@ -363,29 +354,23 @@ export default function YouTubeAudioPlayer() {
       }
       return;
     }
-
     try {
       p.loadVideoById(currentTrack.youtubeId);
-      p.playVideo();
-    } catch (e) {
-      console.warn("[Audio Engine] loadVideoById error:", e);
-    }
-  }, [currentTrack?.youtubeId, isLocalOfflineAudio, initPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
+      p.mute();
+      p.setVolume(0);
+    } catch (_) {}
+  }, [currentTrack?.youtubeId, isLocalOfflineAudio, autoBufferTrack, initPlayer]);
 
-  // Sync volume to audio elements
+  // ── Volume sync (only to main audio — iframe stays muted) ────────────────────
   useEffect(() => {
-    const targetVol = isMuted ? 0 : volume;
-
-    if (offlineAudioRef.current) {
-      offlineAudioRef.current.volume = targetVol;
+    if (mainAudioRef.current) {
+      mainAudioRef.current.volume = isMuted ? 0 : volume;
     }
-
-    const p = playerRef.current;
+    // Keep iframe always muted
     try {
-      if (p && typeof p.setVolume === "function") {
-        p.setVolume(Math.round(targetVol * 100));
-      }
-    } catch (e) {}
+      playerRef.current?.setVolume(0);
+      playerRef.current?.mute();
+    } catch (_) {}
   }, [volume, isMuted]);
 
   return (
@@ -395,43 +380,41 @@ export default function YouTubeAudioPlayer() {
         position: "fixed",
         top: -9999,
         left: -9999,
-        width: 200,
-        height: 200,
+        width: 1,
+        height: 1,
         pointerEvents: "none",
         zIndex: -1,
+        opacity: 0,
       }}
     >
-      {/* Silent carrier to maintain mobile OS AudioSession during screen lock */}
+      {/* Silent WAV carrier — keeps OS AudioSession alive during screen lock */}
       <audio
         ref={silentAudioRef}
         src={SILENT_AUDIO_CARRIER}
         playsInline
         preload="auto"
         loop
-        x-webkit-airplay="allow"
       />
 
-      {/* HTML5 Audio — primary background playback engine (Range-request via /api/stream) */}
+      {/* Main audio engine — starts on /api/stream, switches to blob URL for lock-screen safety */}
       <audio
-        ref={offlineAudioRef}
+        ref={mainAudioRef}
         playsInline
         preload="auto"
-        crossOrigin="anonymous"
-        x-webkit-airplay="allow"
         onEnded={() => nextTrack()}
-        onStalled={() => {
-          // Attempt recovery if audio stalls (e.g. network hiccup after resume)
-          const audio = offlineAudioRef.current;
-          if (audio && isPlayingRef.current) {
-            const t = audio.currentTime;
-            audio.load();
-            audio.currentTime = t;
-            audio.play().catch(() => {});
+        onError={() => {
+          // If stream fails, try to resume from blob if we have one
+          if (autoBlobUrlRef.current && mainAudioRef.current) {
+            const audio = mainAudioRef.current;
+            const pos = audio.currentTime;
+            audio.src = autoBlobUrlRef.current;
+            audio.currentTime = pos;
+            if (isPlayingRef.current) audio.play().catch(() => {});
           }
         }}
       />
 
-      {/* Online YouTube Audio stream container (secondary / sync) */}
+      {/* YouTube iframe — MUTED, used only for track metadata & end-of-track detection */}
       <div ref={containerRef} id="youtube-audio-iframe" />
     </div>
   );
