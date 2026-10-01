@@ -1,5 +1,5 @@
-// Service Worker for Aurafy Mobile PWA
-const CACHE_NAME = "aurafy-pwa-v1";
+// Service Worker for Aurafy Mobile PWA — Background Audio Edition
+const CACHE_NAME = "aurafy-pwa-v2";
 const ASSETS_TO_CACHE = [
   "/",
   "/search",
@@ -36,23 +36,41 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch event — stale-while-revalidate for static assets, network-first for API
+// Fetch event — pass through audio/stream so range requests always work
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Bypass API routes & media stream requests so streams never get blocked
+  // ── CRITICAL: Let ALL audio/stream requests pass directly to the network ──
+  // Never cache or intercept audio — range requests MUST go through unmodified
+  // so mobile browsers can continue streaming in the background.
   if (
-    url.pathname.startsWith("/api/") ||
-    url.pathname.includes("googlevideo.com") ||
-    url.pathname.includes("youtube.com") ||
+    url.pathname.startsWith("/api/stream") ||
+    url.pathname.startsWith("/api/download") ||
     request.destination === "audio" ||
-    request.destination === "video"
+    request.destination === "video" ||
+    request.headers.get("range") !== null
+  ) {
+    // Pass through with no-op — let browser handle range negotiation natively
+    return;
+  }
+
+  // Bypass all other API routes
+  if (url.pathname.startsWith("/api/")) {
+    return;
+  }
+
+  // Bypass external YouTube / Google CDN requests
+  if (
+    url.hostname.includes("youtube.com") ||
+    url.hostname.includes("googlevideo.com") ||
+    url.hostname.includes("ytimg.com") ||
+    url.hostname.includes("ggpht.com")
   ) {
     return;
   }
 
-  // Network-first for HTML pages & App shell
+  // Network-first for HTML pages & App shell navigation
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
@@ -79,4 +97,24 @@ self.addEventListener("fetch", (event) => {
       });
     })
   );
+});
+
+// Background Sync — re-trigger audio resume after network reconnect
+self.addEventListener("sync", (event) => {
+  if (event.tag === "aurafy-audio-resume") {
+    event.waitUntil(
+      self.clients.matchAll({ type: "window" }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: "AUDIO_RESUME" });
+        });
+      })
+    );
+  }
+});
+
+// Push message from clients — handle audio control commands
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });

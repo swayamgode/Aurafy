@@ -11,6 +11,7 @@ declare global {
     _aurafyResume: () => void;
     _aurafyPause: () => void;
     _aurafySeek: (seconds: number) => void;
+    _aurafyGetTime: () => number;
   }
 }
 
@@ -34,6 +35,10 @@ export default function YouTubeAudioPlayer() {
   const offlineAudioRef = useRef<HTMLAudioElement>(null);
   const isApiReady = useRef<boolean>(false);
   const pendingTrack = useRef<string | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const noSleepNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const isPlayingRef = useRef<boolean>(false);
 
   const isLocalOfflineAudio = Boolean(
     currentTrack?.audioUrl &&
@@ -41,10 +46,96 @@ export default function YouTubeAudioPlayer() {
         currentTrack.audioUrl.startsWith("data:"))
   );
 
+  // ── Web Audio API no-sleep trick (keeps iOS/Android audio session alive) ──
+  // Creates a silent oscillator so the browser doesn't suspend audio entirely
+  const startNoSleepAudio = useCallback(() => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      // Create a 1-second silent buffer and loop it forever
+      if (!noSleepNodeRef.current) {
+        const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        source.connect(ctx.destination);
+        source.start(0);
+        noSleepNodeRef.current = source;
+      }
+    } catch (e) {}
+  }, []);
+
+  const stopNoSleepAudio = useCallback(() => {
+    try {
+      if (noSleepNodeRef.current) {
+        noSleepNodeRef.current.stop();
+        noSleepNodeRef.current.disconnect();
+        noSleepNodeRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.suspend().catch(() => {});
+      }
+    } catch (e) {}
+  }, []);
+
+  // ── Screen Wake Lock — prevents display sleep mid-song ──
+  const acquireWakeLock = useCallback(async () => {
+    try {
+      if ("wakeLock" in navigator && !wakeLockRef.current) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request("screen");
+        wakeLockRef.current?.addEventListener("release", () => {
+          wakeLockRef.current = null;
+        });
+      }
+    } catch (e) {}
+  }, []);
+
+  const releaseWakeLock = useCallback(() => {
+    try {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    } catch (e) {}
+  }, []);
+
+  // Re-acquire wake lock when page becomes visible again (released on hide)
+  useEffect(() => {
+    const onVisibility = async () => {
+      if (document.visibilityState === "visible" && isPlayingRef.current) {
+        await acquireWakeLock();
+        // If audio stalled while hidden, reload and play it from last position
+        const audio = offlineAudioRef.current;
+        if (audio && (audio.paused || audio.readyState < 2)) {
+          const savedTime = audio.currentTime;
+          try {
+            audio.load();
+            audio.currentTime = savedTime;
+            await audio.play();
+          } catch (e) {}
+        }
+        // Resume silent carrier too
+        const silent = silentAudioRef.current;
+        if (silent && silent.paused) {
+          silent.play().catch(() => {});
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [acquireWakeLock]);
+
   // Global control bridges — declared unconditionally so offline playback and hardware media keys always work
   useEffect(() => {
     window._aurafyResume = () => {
       try {
+        startNoSleepAudio();
         if (silentAudioRef.current && silentAudioRef.current.paused) {
           silentAudioRef.current.play().catch(() => {});
         }
@@ -57,11 +148,14 @@ export default function YouTubeAudioPlayer() {
         ) {
           playerRef.current.playVideo();
         }
+        acquireWakeLock();
       } catch (e) {}
     };
 
     window._aurafyPause = () => {
       try {
+        stopNoSleepAudio();
+        releaseWakeLock();
         if (silentAudioRef.current && !silentAudioRef.current.paused) {
           silentAudioRef.current.pause();
         }
@@ -90,7 +184,11 @@ export default function YouTubeAudioPlayer() {
         }
       } catch (e) {}
     };
-  }, [isLocalOfflineAudio]);
+
+    window._aurafyGetTime = () => {
+      return offlineAudioRef.current?.currentTime ?? 0;
+    };
+  }, [isLocalOfflineAudio, startNoSleepAudio, stopNoSleepAudio, acquireWakeLock, releaseWakeLock]);
 
   // Initialize YouTube IFrame Player for online streaming
   const initPlayer = useCallback(
@@ -181,18 +279,23 @@ export default function YouTubeAudioPlayer() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep mobile OS AudioSession alive using silent audio carrier
+  // Keep mobile OS AudioSession alive using silent audio carrier + Web Audio no-sleep
   useEffect(() => {
+    isPlayingRef.current = isPlaying;
     const silentAudio = silentAudioRef.current;
     if (!silentAudio) return;
 
     if (isPlaying) {
       silentAudio.volume = 0.001;
       silentAudio.play().catch(() => {});
+      startNoSleepAudio();
+      acquireWakeLock();
     } else {
       silentAudio.pause();
+      stopNoSleepAudio();
+      releaseWakeLock();
     }
-  }, [isPlaying]);
+  }, [isPlaying, startNoSleepAudio, stopNoSleepAudio, acquireWakeLock, releaseWakeLock]);
 
   // Handle audio playback engine (HTML5 Audio for screen lock continuity + YouTube IFrame fallback)
   useEffect(() => {
@@ -305,18 +408,30 @@ export default function YouTubeAudioPlayer() {
         playsInline
         preload="auto"
         loop
+        x-webkit-airplay="allow"
       />
 
-      {/* HTML5 Audio for screen-lock background playback (Range-request capable via /api/stream) */}
+      {/* HTML5 Audio — primary background playback engine (Range-request via /api/stream) */}
       <audio
         ref={offlineAudioRef}
         playsInline
-        preload="metadata"
+        preload="auto"
         crossOrigin="anonymous"
+        x-webkit-airplay="allow"
         onEnded={() => nextTrack()}
+        onStalled={() => {
+          // Attempt recovery if audio stalls (e.g. network hiccup after resume)
+          const audio = offlineAudioRef.current;
+          if (audio && isPlayingRef.current) {
+            const t = audio.currentTime;
+            audio.load();
+            audio.currentTime = t;
+            audio.play().catch(() => {});
+          }
+        }}
       />
 
-      {/* Online YouTube Audio stream container */}
+      {/* Online YouTube Audio stream container (secondary / sync) */}
       <div ref={containerRef} id="youtube-audio-iframe" />
     </div>
   );

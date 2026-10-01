@@ -110,8 +110,11 @@ async function proxyAudioStream(
   const responseHeaders: Record<string, string> = {
     "Content-Type": upstream.headers.get("content-type") || contentType,
     "Accept-Ranges": "bytes",
-    "Cache-Control": "no-store",
+    // Allow mobile browsers to cache stream chunks for background playback
+    "Cache-Control": "public, max-age=0, must-revalidate",
     "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Range",
+    "X-Content-Type-Options": "nosniff",
   };
 
   // Forward range-related headers from upstream

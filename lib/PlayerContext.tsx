@@ -169,7 +169,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [progress, duration, isPlaying]);
 
-  // Visibility change — maintain continuous audio on unlock
+  // Visibility change + pagehide/pageshow — maintain continuous audio on unlock / app switch
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -188,8 +188,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // iOS Safari fires pagehide/pageshow instead of visibilitychange when
+    // the user switches apps or locks the screen from a PWA
+    const handlePageShow = () => {
+      setTimeout(() => {
+        try {
+          if (isPlayingRef.current) {
+            window._aurafyResume?.();
+            if ("mediaSession" in navigator) {
+              navigator.mediaSession.playbackState = "playing";
+            }
+          }
+        } catch (e) {}
+      }, 200);
+    };
+
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
   }, []);
 
   // Playback timer simulation for seamless demo & API player fallback
