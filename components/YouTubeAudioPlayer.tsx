@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-// 44-byte silent WAV — keeps the mobile OS AudioSession alive while screen is locked
+// Silent WAV — keeps mobile OS AudioSession alive during screen lock
 const SILENT_AUDIO_CARRIER =
   "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
@@ -29,20 +29,22 @@ export default function YouTubeAudioPlayer() {
     setYouTubePlayer,
   } = usePlayer();
 
-  const playerRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Primary HTML5 audio player (streams from /api/stream or local offline blob)
+  // Native HTML5 audio is lock-screen-safe and background-safe on iOS & Android
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Silent carrier — maintains OS AudioSession continuous connection
   const silentAudioRef = useRef<HTMLAudioElement>(null);
-  const mainAudioRef = useRef<HTMLAudioElement>(null);
+
+  // YouTube IFrame player (used as secondary fallback if stream route fails)
+  const playerRef = useRef<any>(null);
+  const iframeContainerRef = useRef<HTMLDivElement>(null);
   const isApiReady = useRef<boolean>(false);
   const pendingTrack = useRef<string | null>(null);
+  const isFallbackToIframe = useRef<boolean>(false);
+
+  // State refs
   const isPlayingRef = useRef<boolean>(false);
-
-  // Auto-buffer: track currently being buffered
-  const autoBufferAbortRef = useRef<AbortController | null>(null);
-  const autoBlobUrlRef = useRef<string | null>(null);
-  const currentBlobTrackId = useRef<string | null>(null);
-
-  // Wake lock ref (typed as any since WakeLockSentinel may not be in TS lib)
   const wakeLockRef = useRef<any>(null);
 
   const isLocalOfflineAudio = Boolean(
@@ -51,7 +53,7 @@ export default function YouTubeAudioPlayer() {
         currentTrack.audioUrl.startsWith("data:"))
   );
 
-  // ── Wake Lock helpers ────────────────────────────────────────────────────────
+  // ── Wake Lock ────────────────────────────────────────────────────────────────
   const acquireWakeLock = useCallback(async () => {
     try {
       if ("wakeLock" in navigator && !wakeLockRef.current) {
@@ -70,118 +72,40 @@ export default function YouTubeAudioPlayer() {
     } catch (_) {}
   }, []);
 
-  // Re-acquire wake lock when page becomes visible (it's released automatically on hide)
+  // ── Page visibility / lock screen resume ─────────────────────────────────────
   useEffect(() => {
-    const onVisible = async () => {
+    const onVisible = () => {
       if (document.visibilityState === "visible" && isPlayingRef.current) {
-        await acquireWakeLock();
-        // If main audio stalled while hidden, try to resume it
-        const audio = mainAudioRef.current;
-        if (audio && (audio.paused || audio.readyState < 2)) {
-          audio.play().catch(() => {});
+        acquireWakeLock();
+        if (audioRef.current && audioRef.current.paused && !isFallbackToIframe.current) {
+          audioRef.current.play().catch(() => {});
         }
-        const silent = silentAudioRef.current;
-        if (silent && silent.paused) silent.play().catch(() => {});
+        if (silentAudioRef.current && silentAudioRef.current.paused) {
+          silentAudioRef.current.play().catch(() => {});
+        }
       }
     };
+
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+    };
   }, [acquireWakeLock]);
 
-  // ── AUTO-BUFFER: the KEY fix for lock screen audio ──────────────────────────
-  // HTTP streams die when screen locks. Blob URLs live in memory — they NEVER need
-  // a network connection, so they keep playing even with screen locked.
-  // Strategy:
-  //   1. Start playing from /api/stream immediately (so audio starts without delay)
-  //   2. Simultaneously, fetch the full audio blob in the background
-  //   3. Once blob is ready, seamlessly switch the audio element src to the blob URL
-  //   4. From that point on, audio works reliably on lock screen
-  const autoBufferTrack = useCallback(
-    async (youtubeId: string, title: string, artist: string) => {
-      // Cancel any in-progress buffer for a different track
-      if (autoBufferAbortRef.current) {
-        autoBufferAbortRef.current.abort();
-      }
-      // Revoke previous blob to free memory
-      if (autoBlobUrlRef.current && currentBlobTrackId.current !== youtubeId) {
-        URL.revokeObjectURL(autoBlobUrlRef.current);
-        autoBlobUrlRef.current = null;
-        currentBlobTrackId.current = null;
-      }
-      // Already have blob for this track — just make sure audio is using it
-      if (currentBlobTrackId.current === youtubeId && autoBlobUrlRef.current) {
-        const audio = mainAudioRef.current;
-        if (audio && !audio.src.startsWith("blob:")) {
-          const pos = audio.currentTime;
-          const playing = !audio.paused;
-          audio.src = autoBlobUrlRef.current;
-          audio.currentTime = pos;
-          if (playing) audio.play().catch(() => {});
-        }
-        return;
-      }
-
-      const abort = new AbortController();
-      autoBufferAbortRef.current = abort;
-
-      try {
-        // Slight delay — let the stream start playing first so user hears audio instantly
-        await new Promise((res) => setTimeout(res, 800));
-        if (abort.signal.aborted) return;
-
-        // Fetch the full audio from /api/stream as a complete blob
-        // (The URL is already cached from the initial stream request, so no double yt-dlp call)
-        const streamUrl = `/api/stream?id=${encodeURIComponent(youtubeId)}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
-        const res = await fetch(streamUrl, { signal: abort.signal });
-
-        if (!res.ok || abort.signal.aborted) return;
-
-        const blob = await res.blob();
-        if (abort.signal.aborted || blob.size < 5000) return;
-
-        const blobUrl = URL.createObjectURL(blob);
-        autoBlobUrlRef.current = blobUrl;
-        currentBlobTrackId.current = youtubeId;
-
-        // Seamlessly switch the audio element to the memory-resident blob URL
-        const audio = mainAudioRef.current;
-        if (audio && !abort.signal.aborted) {
-          const savedPos = audio.currentTime;
-          const wasPlaying = !audio.paused;
-
-          audio.src = blobUrl;
-          audio.load();
-
-          // Restore position after load
-          const onCanPlay = () => {
-            audio.removeEventListener("canplay", onCanPlay);
-            audio.currentTime = savedPos;
-            if (wasPlaying) {
-              audio.play().catch(() => {});
-            }
-          };
-          audio.addEventListener("canplay", onCanPlay);
-        }
-
-        console.log("[Audio] ✓ Switched to blob URL — lock-screen-safe playback active");
-      } catch (err: any) {
-        if (err?.name !== "AbortError") {
-          console.warn("[Audio] Auto-buffer failed:", err?.message);
-        }
-      }
-    },
-    []
-  );
-
-  // ── Global control bridges ───────────────────────────────────────────────────
+  // ── Global bridges for MediaSession hardware/lock-screen controls ───────────
   useEffect(() => {
     window._aurafyResume = () => {
       try {
-        if (silentAudioRef.current?.paused) {
-          silentAudioRef.current.play().catch(() => {});
-        }
-        if (mainAudioRef.current) {
-          mainAudioRef.current.play().catch(() => {});
+        silentAudioRef.current?.play().catch(() => {});
+        if (isFallbackToIframe.current) {
+          playerRef.current?.playVideo?.();
+        } else if (audioRef.current) {
+          audioRef.current.play().catch(() => {
+            // If HTML5 audio fails, fallback to YouTube iframe
+            playerRef.current?.playVideo?.();
+          });
         }
         acquireWakeLock();
       } catch (_) {}
@@ -190,43 +114,50 @@ export default function YouTubeAudioPlayer() {
     window._aurafyPause = () => {
       try {
         silentAudioRef.current?.pause();
-        mainAudioRef.current?.pause();
+        audioRef.current?.pause();
+        playerRef.current?.pauseVideo?.();
         releaseWakeLock();
       } catch (_) {}
     };
 
     window._aurafySeek = (seconds: number) => {
       try {
-        if (mainAudioRef.current) {
-          mainAudioRef.current.currentTime = seconds;
+        if (audioRef.current && !isNaN(seconds)) {
+          audioRef.current.currentTime = seconds;
         }
-        if (playerRef.current?.seekTo) {
-          playerRef.current.seekTo(seconds, true);
-        }
+        playerRef.current?.seekTo?.(seconds, true);
       } catch (_) {}
     };
 
-    window._aurafyGetTime = () => mainAudioRef.current?.currentTime ?? 0;
+    window._aurafyGetTime = () => {
+      if (audioRef.current && !isFallbackToIframe.current) {
+        return audioRef.current.currentTime || 0;
+      }
+      try {
+        return playerRef.current?.getCurrentTime?.() || 0;
+      } catch {
+        return 0;
+      }
+    };
   }, [acquireWakeLock, releaseWakeLock]);
 
-  // ── Initialize YouTube IFrame Player (MUTED — used only for track-end detection) ──
-  const initPlayer = useCallback(
+  // ── YouTube IFrame fallback player init ──────────────────────────────────────
+  const initYouTubePlayer = useCallback(
     (videoId?: string) => {
-      if (!containerRef.current || !window.YT || !window.YT.Player) return;
-
+      if (!iframeContainerRef.current || !window.YT?.Player) return;
       const id = videoId || currentTrack?.youtubeId || "";
       if (!id) return;
 
-      try { playerRef.current?.destroy(); } catch (_) {}
-      playerRef.current = null;
-
       try {
-        playerRef.current = new window.YT.Player(containerRef.current, {
-          height: "1",
-          width: "1",
+        // Safe inner element replacement without destroying ref container
+        iframeContainerRef.current.innerHTML = '<div id="yt-fallback-slot"></div>';
+
+        playerRef.current = new window.YT.Player("yt-fallback-slot", {
+          height: "200",
+          width: "200",
           videoId: id,
           playerVars: {
-            autoplay: 1,
+            autoplay: 0,
             controls: 0,
             disablekb: 1,
             fs: 0,
@@ -234,23 +165,25 @@ export default function YouTubeAudioPlayer() {
             rel: 0,
             playsinline: 1,
             enablejsapi: 1,
-            mute: 1, // ← MUTED: HTML5 audio is the actual audio source
           },
           events: {
             onReady: (event: any) => {
               try {
-                event.target.setVolume(0); // always muted
-                event.target.mute();
-                if (!isLocalOfflineAudio) event.target.playVideo();
-                if (typeof setYouTubePlayer === "function") {
-                  setYouTubePlayer(event.target);
+                event.target.setVolume(isMuted ? 0 : Math.round(volume * 100));
+                // Only play iframe if fallback is active
+                if (isFallbackToIframe.current && isPlayingRef.current) {
+                  event.target.playVideo();
+                } else {
+                  event.target.mute();
                 }
+                setYouTubePlayer?.(event.target);
                 window._ytPlayerInstance = event.target;
               } catch (_) {}
             },
             onStateChange: (event: any) => {
-              // YT.PlayerState.ENDED = 0
-              if (event.data === 0) nextTrack();
+              if (event.data === 0 && isFallbackToIframe.current) {
+                nextTrack();
+              }
             },
             onError: (event: any) => {
               if ([100, 101, 150].includes(event.data)) {
@@ -260,34 +193,36 @@ export default function YouTubeAudioPlayer() {
           },
         });
       } catch (err) {
-        console.warn("[Audio Engine] YT init failed:", err);
+        console.warn("[Aurafy] YT fallback init error:", err);
       }
     },
-    [currentTrack?.youtubeId, isLocalOfflineAudio] // eslint-disable-line react-hooks/exhaustive-deps
+    [currentTrack?.youtubeId, volume, isMuted, nextTrack, setYouTubePlayer]
   );
 
-  // Load YouTube IFrame API script once
+  // Load YouTube iframe API once
   useEffect(() => {
     if (window.YT?.Player) {
       isApiReady.current = true;
-      initPlayer();
+      initYouTubePlayer();
       return;
     }
+
     if (!document.getElementById("yt-iframe-api")) {
       const tag = document.createElement("script");
       tag.id = "yt-iframe-api";
       tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
     }
+
     window.onYouTubeIframeAPIReady = () => {
       isApiReady.current = true;
       const id = pendingTrack.current || currentTrack?.youtubeId || "";
       pendingTrack.current = null;
-      if (id) initPlayer(id);
+      if (id) initYouTubePlayer(id);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Silent carrier + Wake Lock management ────────────────────────────────────
+  // ── Silent carrier + Wake Lock sync ─────────────────────────────────────────
   useEffect(() => {
     isPlayingRef.current = isPlaying;
     const silent = silentAudioRef.current;
@@ -303,74 +238,118 @@ export default function YouTubeAudioPlayer() {
     }
   }, [isPlaying, acquireWakeLock, releaseWakeLock]);
 
-  // ── Main audio playback engine ───────────────────────────────────────────────
+  // ── Primary Audio Engine: Track Change ───────────────────────────────────────
   useEffect(() => {
-    const audio = mainAudioRef.current;
+    const audio = audioRef.current;
     if (!currentTrack || !audio) return;
 
-    // Determine audio source:
-    //   • offline blob/data URI → play directly (already lock-screen-safe)
-    //   • online track → stream from /api/stream (will auto-switch to blob shortly)
-    const targetSrc = isLocalOfflineAudio && currentTrack.audioUrl
-      ? currentTrack.audioUrl
-      : `/api/stream?id=${encodeURIComponent(currentTrack.youtubeId)}&title=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`;
+    isFallbackToIframe.current = false;
 
-    // Only update src if track actually changed
-    const srcChanged =
-      !audio.src.includes(encodeURIComponent(currentTrack.youtubeId)) &&
-      !audio.src.startsWith("blob:") &&
-      audio.src !== targetSrc;
+    // Target stream URL:
+    //   - local offline IndexedDB blob
+    //   - direct audio stream from /api/stream (range-request capable, background-safe)
+    const targetSrc =
+      isLocalOfflineAudio && currentTrack.audioUrl
+        ? currentTrack.audioUrl
+        : `/api/stream?id=${encodeURIComponent(currentTrack.youtubeId)}&title=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`;
 
-    if (srcChanged || !audio.src) {
+    const currentSrc = audio.getAttribute("src") || audio.src;
+    const isDifferent =
+      !currentSrc ||
+      (!currentSrc.includes(encodeURIComponent(currentTrack.youtubeId)) &&
+        currentSrc !== targetSrc);
+
+    if (isDifferent) {
       audio.src = targetSrc;
-      try { audio.load(); } catch (_) {}
+      try {
+        audio.load();
+      } catch (_) {}
     }
 
     audio.volume = isMuted ? 0 : volume;
 
     if (isPlaying) {
-      audio.play().catch(() => {});
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("[Aurafy] HTML5 audio play failed, activating YT fallback:", err);
+          isFallbackToIframe.current = true;
+          try {
+            playerRef.current?.unMute?.();
+            playerRef.current?.setVolume(isMuted ? 0 : Math.round(volume * 100));
+            playerRef.current?.playVideo?.();
+          } catch (_) {}
+        });
+      }
     } else {
       audio.pause();
     }
-  }, [isPlaying, isLocalOfflineAudio, currentTrack?.youtubeId, currentTrack?.audioUrl, currentTrack?.title, currentTrack?.artist, volume, isMuted]);
 
-  // ── Track change: load new YouTube video + trigger auto-buffer ───────────────
-  useEffect(() => {
-    if (!currentTrack?.youtubeId) return;
-
-    // Auto-buffer for online tracks (offline tracks already have blob URLs)
-    if (!isLocalOfflineAudio) {
-      autoBufferTrack(currentTrack.youtubeId, currentTrack.title, currentTrack.artist);
-    }
-
-    // Update YouTube iframe (muted, just for session/track-end sync)
+    // Keep YouTube iframe ready with current video id
     const p = playerRef.current;
     if (!p || typeof p.loadVideoById !== "function") {
       if (isApiReady.current) {
-        initPlayer(currentTrack.youtubeId);
+        initYouTubePlayer(currentTrack.youtubeId);
       } else {
         pendingTrack.current = currentTrack.youtubeId;
       }
-      return;
+    } else {
+      try {
+        p.cueVideoById(currentTrack.youtubeId);
+        p.mute();
+        p.setVolume(0);
+      } catch (_) {}
     }
-    try {
-      p.loadVideoById(currentTrack.youtubeId);
-      p.mute();
-      p.setVolume(0);
-    } catch (_) {}
-  }, [currentTrack?.youtubeId, isLocalOfflineAudio, autoBufferTrack, initPlayer]);
+  }, [
+    currentTrack?.youtubeId,
+    currentTrack?.audioUrl,
+    isLocalOfflineAudio,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Volume sync (only to main audio — iframe stays muted) ────────────────────
+  // ── Sync Play/Pause ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (mainAudioRef.current) {
-      mainAudioRef.current.volume = isMuted ? 0 : volume;
+    const audio = audioRef.current;
+    if (!audio || !currentTrack) return;
+
+    if (isPlaying) {
+      if (isFallbackToIframe.current) {
+        try {
+          playerRef.current?.playVideo?.();
+        } catch (_) {}
+      } else {
+        audio.play().catch((err) => {
+          console.warn("[Aurafy] Play error, falling back:", err);
+          isFallbackToIframe.current = true;
+          try {
+            playerRef.current?.unMute?.();
+            playerRef.current?.setVolume(isMuted ? 0 : Math.round(volume * 100));
+            playerRef.current?.playVideo?.();
+          } catch (_) {}
+        });
+      }
+    } else {
+      audio.pause();
+      try {
+        playerRef.current?.pauseVideo?.();
+      } catch (_) {}
     }
-    // Keep iframe always muted
-    try {
-      playerRef.current?.setVolume(0);
-      playerRef.current?.mute();
-    } catch (_) {}
+  }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync Volume ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const vol = isMuted ? 0 : volume;
+
+    if (audioRef.current) {
+      audioRef.current.volume = vol;
+    }
+
+    if (playerRef.current && isFallbackToIframe.current) {
+      try {
+        playerRef.current.setVolume(Math.round(vol * 100));
+        if (vol > 0) playerRef.current.unMute?.();
+        else playerRef.current.mute?.();
+      } catch (_) {}
+    }
   }, [volume, isMuted]);
 
   return (
@@ -378,16 +357,16 @@ export default function YouTubeAudioPlayer() {
       aria-hidden="true"
       style={{
         position: "fixed",
-        top: -9999,
-        left: -9999,
+        bottom: 0,
+        right: 0,
         width: 1,
         height: 1,
+        overflow: "hidden",
         pointerEvents: "none",
         zIndex: -1,
-        opacity: 0,
       }}
     >
-      {/* Silent WAV carrier — keeps OS AudioSession alive during screen lock */}
+      {/* Silent WAV carrier — maintains OS AudioSession continuous connection */}
       <audio
         ref={silentAudioRef}
         src={SILENT_AUDIO_CARRIER}
@@ -396,26 +375,27 @@ export default function YouTubeAudioPlayer() {
         loop
       />
 
-      {/* Main audio engine — starts on /api/stream, switches to blob URL for lock-screen safety */}
+      {/* Primary Audio Player — native HTML5 audio for continuous lock-screen & background playback */}
       <audio
-        ref={mainAudioRef}
+        ref={audioRef}
         playsInline
         preload="auto"
         onEnded={() => nextTrack()}
         onError={() => {
-          // If stream fails, try to resume from blob if we have one
-          if (autoBlobUrlRef.current && mainAudioRef.current) {
-            const audio = mainAudioRef.current;
-            const pos = audio.currentTime;
-            audio.src = autoBlobUrlRef.current;
-            audio.currentTime = pos;
-            if (isPlayingRef.current) audio.play().catch(() => {});
-          }
+          console.warn("[Aurafy] Audio error on stream, falling back to YouTube iframe");
+          isFallbackToIframe.current = true;
+          try {
+            playerRef.current?.unMute?.();
+            playerRef.current?.setVolume(isMuted ? 0 : Math.round(volume * 100));
+            if (isPlayingRef.current) {
+              playerRef.current?.playVideo?.();
+            }
+          } catch (_) {}
         }}
       />
 
-      {/* YouTube iframe — MUTED, used only for track metadata & end-of-track detection */}
-      <div ref={containerRef} id="youtube-audio-iframe" />
+      {/* YouTube IFrame Fallback slot — kept safe inside container */}
+      <div ref={iframeContainerRef} id="youtube-audio-iframe-container" />
     </div>
   );
 }

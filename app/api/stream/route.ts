@@ -14,9 +14,13 @@ const PYTHON_EXTRACT = `
 import yt_dlp, sys, json
 target = sys.argv[1]
 ydl_opts = {
-    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
+    'format': 'bestaudio[ext=m4a]/bestaudio/best',
     'quiet': True,
     'no_warnings': True,
+    'noplaylist': True,
+    'skip_download': True,
+    'no_check_certificates': True,
+    'prefer_insecure': True,
 }
 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
     info = ydl.extract_info(target, download=False)
@@ -27,12 +31,19 @@ with yt_dlp.YoutubeDL(ydl_opts) as ydl:
     print(json.dumps({'url': url, 'ext': ext}))
 `;
 
+// Public fallback endpoints if Python yt-dlp is unavailable or errors
+const FALLBACK_PROXIES = [
+  (id: string) => `https://inv.nadeko.net/latest_version?id=${id}&itag=140`,
+  (id: string) => `https://invidious.privacydev.net/latest_version?id=${id}&itag=140`,
+  (id: string) => `https://yt.artemislena.eu/latest_version?id=${id}&itag=140`,
+];
+
 async function resolveStreamUrl(
   target: string
 ): Promise<{ url: string; ext: string } | null> {
   try {
     const { stdout } = await execFileAsync("python", ["-c", PYTHON_EXTRACT, target], {
-      timeout: 20000,
+      timeout: 15000,
     });
     const parsed = JSON.parse(stdout.trim());
     if (parsed?.url?.startsWith("http")) return parsed;
@@ -72,7 +83,7 @@ export async function GET(req: NextRequest) {
 
   const cacheKey = isVideoId ? id : `${artist}-${title}`;
 
-  // 1. Check cache (saves a yt-dlp call when auto-buffer fetches the same track)
+  // 1. Check cache
   const cached = urlCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return proxyAudioStream(req, cached.url, cached.ext);
@@ -90,14 +101,30 @@ export async function GET(req: NextRequest) {
     return proxyAudioStream(req, result.url, result.ext);
   }
 
+  // 3. Fallback to public Invidious proxies if Python yt-dlp fails
+  if (isVideoId) {
+    for (const getProxyUrl of FALLBACK_PROXIES) {
+      try {
+        const proxyUrl = getProxyUrl(id);
+        const testRes = await fetch(proxyUrl, {
+          method: "HEAD",
+          signal: AbortSignal.timeout(4000),
+        });
+        if (testRes.ok) {
+          return proxyAudioStream(req, proxyUrl, "m4a");
+        }
+      } catch {
+        // try next
+      }
+    }
+  }
+
   return NextResponse.json({ error: "Stream extraction failed" }, { status: 503 });
 }
 
 /**
  * Proxy audio from YouTube CDN with full Range-request support.
- * This endpoint serves TWO purposes:
- *   1. Real-time streaming for initial playback
- *   2. Full-blob fetch by the auto-buffer engine (for lock-screen-safe playback)
+ * Allows mobile browsers to buffer, seek, and stream in background during screen lock.
  */
 async function proxyAudioStream(
   req: NextRequest,
