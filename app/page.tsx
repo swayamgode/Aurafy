@@ -23,6 +23,7 @@ const GUEST_USER_ID = "guest";
 
 export default function HomePage() {
   const { playTrack, downloadedIds } = usePlayer();
+  const [mounted, setMounted] = useState(false);
   const [localPlaylists, setLocalPlaylists] = useState<Playlist[]>([]);
   const [offlineSongs, setOfflineSongs] = useState<Track[]>([]);
   const [userFavorites, setUserFavorites] = useState<Track[]>([]);
@@ -41,6 +42,7 @@ export default function HomePage() {
 
   // Sync custom playlists & offline downloads
   useEffect(() => {
+    setMounted(true);
     try {
       const stored = localStorage.getItem("aurafy_user_playlists");
       if (stored) {
@@ -113,7 +115,7 @@ export default function HomePage() {
         </div>
 
         {/* Featured Track Hero Card — dynamic from downloads/favorites */}
-        {activeSongs.length > 0 ? (
+        {mounted && activeSongs.length > 0 ? (
           <section aria-label="Featured Track">
             <div
               onClick={() => playTrack(activeSongs[0])}
@@ -158,7 +160,7 @@ export default function HomePage() {
             <Link href="/search">
               <div className="relative w-full h-48 sm:h-56 rounded-3xl overflow-hidden shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform">
                 <Image
-                  src="/banners/Relaxed Music Listener with Headphones.png"
+                  src="/banners/hero-banner.png"
                   alt="Start your music journey"
                   fill
                   priority
