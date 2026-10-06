@@ -7,19 +7,19 @@ import {
   Pause,
   SkipBack,
   SkipForward,
-  Sword,
   Trophy,
   Zap,
   Heart,
   Target,
-  ChevronUp,
   AlertTriangle,
-  Gamepad2,
   RotateCcw,
   HelpCircle,
   Smartphone,
   MousePointer,
   Sparkles,
+  Flame,
+  Star,
+  ShieldAlert,
 } from "lucide-react";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useToast } from "@/lib/ToastContext";
@@ -30,17 +30,16 @@ import type { Difficulty, ScoreUpdate } from "./BeatSaberGame";
 const BeatSaberGame = dynamic(() => import("./BeatSaberGame"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 flex items-center justify-center bg-[#030508]">
+    <div className="absolute inset-0 flex items-center justify-center bg-[#02040a]">
       <div className="text-center space-y-3">
-        <div className="w-16 h-16 border-4 border-[#D7192F] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-white/70 text-sm font-medium">Loading Beat Saber...</p>
+        <div className="w-16 h-16 border-4 border-[#00f0ff] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-white/70 text-sm font-medium">Loading Beat Burst VR...</p>
       </div>
     </div>
   ),
 });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 interface BeatSaberModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,12 +47,10 @@ interface BeatSaberModalProps {
 
 const DIFFICULTY_LABELS: Record<Difficulty, { label: string; color: string; ring: string }> = {
   easy:   { label: "Easy",   color: "text-emerald-400", ring: "border-emerald-400" },
-  normal: { label: "Normal", color: "text-yellow-400",  ring: "border-yellow-400" },
+  normal: { label: "Normal", color: "text-cyan-400",    ring: "border-cyan-400" },
   hard:   { label: "Hard",   color: "text-orange-400",  ring: "border-orange-400" },
-  expert: { label: "Expert", color: "text-red-400",     ring: "border-red-500" },
+  expert: { label: "Expert", color: "text-pink-500",    ring: "border-pink-500" },
 };
-
-// ─── Main Modal ───────────────────────────────────────────────────────────────
 
 export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps) {
   const {
@@ -74,23 +71,18 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     misses: 0,
     accuracy: 100,
   });
-  const [hitFlashLeft, setHitFlashLeft] = useState(false);
-  const [hitFlashRight, setHitFlashRight] = useState(false);
+  const [hitFlash, setHitFlash] = useState(false);
   const [missFlash, setMissFlash] = useState(false);
-  const [showGyroTip, setShowGyroTip] = useState(false);
-  const [bpm] = useState(128); // Default; beat detector updates this
+  const [bpm] = useState(128);
   const [recenterCount, setRecenterCount] = useState(0);
   const [isGyroActive, setIsGyroActive] = useState(false);
-  const [isGyroEnabled, setIsGyroEnabled] = useState(false); // Default steady camera for effortless phone play
-  const [slashLeftCount, setSlashLeftCount] = useState(0);
-  const [slashRightCount, setSlashRightCount] = useState(0);
+  const [isGyroEnabled, setIsGyroEnabled] = useState(true); // 360 VR motion look enabled by default
   const [showControlsModal, setShowControlsModal] = useState(false);
 
-  const hitTimerLeft = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hitTimerRight = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const missTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Close guard ──────────────────────────────────────────────────────────────
+  // ── Close Guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) {
       setGameStarted(false);
@@ -99,14 +91,7 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     }
   }, [isOpen]);
 
-  // ── Detect gyro availability ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!isOpen) return;
-    const hasGyro = typeof window !== "undefined" && "DeviceOrientationEvent" in window;
-    setShowGyroTip(hasGyro);
-  }, [isOpen]);
-
-  // ── Request Gyroscope permission (iOS Safari required gesture) ────────────
+  // ── Request Gyroscope Permission (iOS Safari) ─────────────────────────────
   const requestGyroPermission = async () => {
     if (
       typeof window !== "undefined" &&
@@ -123,10 +108,10 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     return true;
   };
 
-  // ── Start game ────────────────────────────────────────────────────────────
+  // ── Start Game ────────────────────────────────────────────────────────────
   const handleStartGame = async () => {
     if (!currentTrack) {
-      showToast("Play a song first to start Beat Saber!", "info");
+      showToast("Play a song first to start Beat Burst!", "info");
       return;
     }
     await requestGyroPermission();
@@ -137,36 +122,29 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     try {
       window._aurafyResume?.();
     } catch (_) {}
-    showToast(`Beat Saber started — ${DIFFICULTY_LABELS[difficulty].label} mode!`, "success");
+    showToast(`Beat Burst started — ${DIFFICULTY_LABELS[difficulty].label} mode!`, "success");
   };
 
-  // ── Recenter VR camera ────────────────────────────────────────────────────
   const handleRecenter = () => {
     setRecenterCount((c) => c + 1);
-    showToast("VR look recentered!", "info");
+    showToast("VR view recentered!", "info");
   };
 
-  // ── Callbacks from game engine ────────────────────────────────────
+  // ── Game Engine Callbacks ─────────────────────────────────────────────────
   const handleScoreUpdate = useCallback((update: ScoreUpdate) => {
     setScore(update);
   }, []);
 
-  const handleBlockHit = useCallback((isLeft: boolean, _intensity: number) => {
-    if (isLeft) {
-      setHitFlashLeft(true);
-      if (hitTimerLeft.current) clearTimeout(hitTimerLeft.current);
-      hitTimerLeft.current = setTimeout(() => setHitFlashLeft(false), 180);
-    } else {
-      setHitFlashRight(true);
-      if (hitTimerRight.current) clearTimeout(hitTimerRight.current);
-      hitTimerRight.current = setTimeout(() => setHitFlashRight(false), 180);
-    }
+  const handleBlockHit = useCallback((isSpecial: boolean, _intensity: number) => {
+    setHitFlash(true);
+    if (hitTimer.current) clearTimeout(hitTimer.current);
+    hitTimer.current = setTimeout(() => setHitFlash(false), isSpecial ? 220 : 140);
   }, []);
 
   const handleMiss = useCallback(() => {
     setMissFlash(true);
     if (missTimer.current) clearTimeout(missTimer.current);
-    missTimer.current = setTimeout(() => setMissFlash(false), 350);
+    missTimer.current = setTimeout(() => setMissFlash(false), 300);
   }, []);
 
   if (!isOpen) return null;
@@ -174,17 +152,14 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
   const diff = DIFFICULTY_LABELS[difficulty];
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-[#030508] overflow-hidden">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-[#02040a] overflow-hidden select-none">
 
-      {/* ── Hit Flash Borders ── */}
-      {hitFlashLeft && (
-        <div className="absolute inset-0 pointer-events-none z-30 border-[6px] border-[#D7192F] rounded-none opacity-80 animate-pulse" />
-      )}
-      {hitFlashRight && (
-        <div className="absolute inset-0 pointer-events-none z-30 border-[6px] border-[#00b4ff] rounded-none opacity-80 animate-pulse" />
+      {/* ── Visual Hit / Miss Flash Shimmers ── */}
+      {hitFlash && (
+        <div className="absolute inset-0 pointer-events-none z-30 border-[6px] border-[#00f0ff]/60 opacity-80 animate-pulse" />
       )}
       {missFlash && (
-        <div className="absolute inset-0 pointer-events-none z-30 bg-white/5 border-[4px] border-white/30" />
+        <div className="absolute inset-0 pointer-events-none z-30 bg-red-600/10 border-[5px] border-red-500/50" />
       )}
 
       {/* ── 3D Game Canvas ── */}
@@ -201,35 +176,27 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
               recenterTrigger={recenterCount}
               isGyroEnabled={isGyroEnabled}
               onGyroActive={setIsGyroActive}
-              slashLeftTrigger={slashLeftCount}
-              slashRightTrigger={slashRightCount}
             />
           </div>
 
-          {/* Arcade Tap Buttons on Phone — 100x simpler & more fun */}
-          <div className="absolute inset-x-0 bottom-24 z-20 flex justify-between gap-3 px-4 pointer-events-auto">
-            <button
-              onTouchStart={(e) => {
-                e.preventDefault();
-                setSlashLeftCount((c) => c + 1);
-              }}
-              onMouseDown={() => setSlashLeftCount((c) => c + 1)}
-              className="flex-1 py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-red-600/40 to-red-500/20 active:from-red-600/70 border-2 border-red-500/40 active:border-red-400 backdrop-blur-md transition-all active:scale-95 shadow-lg shadow-red-950/50 select-none cursor-pointer flex items-center justify-center space-x-2"
-            >
-              <span className="text-xl">🔴</span>
-              <span className="text-white font-black text-xs sm:text-sm tracking-wider uppercase">Tap Red</span>
-            </button>
-            <button
-              onTouchStart={(e) => {
-                e.preventDefault();
-                setSlashRightCount((c) => c + 1);
-              }}
-              onMouseDown={() => setSlashRightCount((c) => c + 1)}
-              className="flex-1 py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-blue-600/40 active:from-blue-600/70 border-2 border-cyan-400/40 active:border-cyan-300 backdrop-blur-md transition-all active:scale-95 shadow-lg shadow-cyan-950/50 select-none cursor-pointer flex items-center justify-center space-x-2"
-            >
-              <span className="text-white font-black text-xs sm:text-sm tracking-wider uppercase">Tap Blue</span>
-              <span className="text-xl">🔵</span>
-            </button>
+          {/* Holographic Cyber Reticle Crosshair in Center */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="relative flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full border border-cyan-400/50 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-sm shadow-cyan-400 animate-ping" />
+              </div>
+              <div className="absolute -top-1 w-0.5 h-2 bg-cyan-400/60" />
+              <div className="absolute -bottom-1 w-0.5 h-2 bg-cyan-400/60" />
+              <div className="absolute -left-1 h-0.5 w-2 bg-cyan-400/60" />
+              <div className="absolute -right-1 h-0.5 w-2 bg-cyan-400/60" />
+            </div>
+          </div>
+
+          {/* Mobile Tap Cue */}
+          <div className="absolute inset-x-0 bottom-24 z-10 flex justify-center pointer-events-none opacity-40">
+            <span className="text-[11px] font-bold text-cyan-300 px-3 py-1 rounded-full bg-black/50 border border-cyan-500/30">
+              ⚡ Tap or Click incoming cubes to burst them!
+            </span>
           </div>
         </>
       )}
@@ -241,14 +208,14 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/15 hover:bg-white/20 transition-all active:scale-95 cursor-pointer"
-            aria-label="Close Beat Saber"
+            aria-label="Close Beat Burst"
           >
             <X className="w-4 h-4 text-white" />
           </button>
           <div>
             <div className="flex items-center space-x-1.5">
-              <Sword className="w-4 h-4 text-[#D7192F]" />
-              <span className="text-white font-black text-sm tracking-widest uppercase">Beat Saber</span>
+              <Sparkles className="w-4 h-4 text-[#00f0ff]" />
+              <span className="text-white font-black text-sm tracking-widest uppercase">Beat Burst VR</span>
             </div>
             {currentTrack && (
               <p className="text-white/50 text-[10px] truncate max-w-[120px] sm:max-w-[200px]">
@@ -262,24 +229,24 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
         <div className="flex items-center space-x-2">
           {gameStarted && (
             <>
-              {/* Camera mode toggle (Steady vs VR Gyro) */}
+              {/* VR Gyro / Steady Camera Toggle */}
               <button
                 onClick={() => {
                   setIsGyroEnabled((prev) => !prev);
-                  showToast(!isGyroEnabled ? "VR Gyro look ON" : "Steady camera locked", "info");
+                  showToast(!isGyroEnabled ? "360° VR Gyro Look ON" : "Steady camera locked", "info");
                 }}
-                title="Toggle VR Gyro vs Steady Camera"
+                title="Toggle 360 VR Gyro vs Steady Camera"
                 className={`px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1 ${
                   isGyroEnabled
-                    ? "bg-indigo-500/30 border-indigo-400 text-indigo-300"
+                    ? "bg-cyan-500/30 border-cyan-400 text-cyan-200"
                     : "bg-white/10 border-white/15 text-white/60 hover:text-white"
                 }`}
               >
                 <Smartphone className="w-3 h-3" />
-                <span>{isGyroEnabled ? "VR Gyro" : "Steady"}</span>
+                <span>{isGyroEnabled ? "VR 360°" : "Steady"}</span>
               </button>
 
-              {/* Recenter button if gyro is on */}
+              {/* Recenter button */}
               {isGyroEnabled && (
                 <button
                   onClick={handleRecenter}
@@ -292,7 +259,7 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
             </>
           )}
 
-          {/* How to play / controls button */}
+          {/* Controls button */}
           <button
             onClick={() => setShowControlsModal(true)}
             title="Controls & How to Play"
@@ -311,11 +278,11 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
         </div>
       </div>
 
-      {/* ── Score HUD (game mode) ── */}
+      {/* ── Score HUD (In-Game Mode) ── */}
       {gameStarted && (
         <div className="relative z-10 flex items-start justify-between px-4 pointer-events-none">
           {/* Left score panel */}
-          <div className="bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 p-3 min-w-[110px]">
+          <div className="bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 p-3 min-w-[100px]">
             <div className="flex items-center space-x-1.5 mb-0.5">
               <Trophy className="w-3.5 h-3.5 text-yellow-400" />
               <span className="text-white/60 text-[10px] font-bold uppercase tracking-wider">Score</span>
@@ -327,16 +294,16 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
 
           {/* Center: Combo + Multiplier */}
           <div className="flex flex-col items-center">
-            <div className="bg-black/70 backdrop-blur-md rounded-2xl border border-white/10 px-4 py-2 text-center">
-              <p className="text-white/50 text-[9px] font-bold uppercase tracking-widest">Combo</p>
+            <div className="bg-black/70 backdrop-blur-md rounded-2xl border border-cyan-400/20 px-4 py-2 text-center">
+              <p className="text-cyan-300/70 text-[9px] font-bold uppercase tracking-widest">Combo</p>
               <p className={`font-black text-2xl leading-none tabular-nums ${
-                score.combo > 50 ? "text-yellow-300" : score.combo > 20 ? "text-orange-400" : "text-white"
+                score.combo > 40 ? "text-yellow-300" : score.combo > 15 ? "text-cyan-400" : "text-white"
               }`}>
                 {score.combo}x
               </p>
             </div>
             {score.multiplier > 1 && (
-              <div className="mt-1 flex items-center space-x-1 bg-[#D7192F]/80 rounded-full px-2 py-0.5">
+              <div className="mt-1 flex items-center space-x-1 bg-cyan-600/80 rounded-full px-2 py-0.5 shadow-sm shadow-cyan-500">
                 <Zap className="w-3 h-3 text-white" />
                 <span className="text-white font-black text-xs">×{score.multiplier}</span>
               </div>
@@ -356,7 +323,7 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
             </p>
             {score.misses > 0 && (
               <div className="flex items-center justify-end space-x-1 mt-1">
-                <Heart className="w-3 h-3 text-red-400" style={{ strokeDasharray: 0 }} />
+                <Heart className="w-3 h-3 text-red-400" />
                 <span className="text-red-400 text-[10px] font-bold">{score.misses} miss</span>
               </div>
             )}
@@ -364,26 +331,26 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
         </div>
       )}
 
-      {/* ── Pre-game Screen ── */}
+      {/* ── Pre-Game Screen ── */}
       {!gameStarted && (
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-start overflow-y-auto px-4 py-4 space-y-5 max-w-lg mx-auto w-full">
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-start overflow-y-auto px-4 py-3 space-y-4 max-w-lg mx-auto w-full">
 
-          {/* Hero icon */}
+          {/* Hero Icon */}
           <div className="relative pt-2">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#D7192F] to-[#8b000f] flex items-center justify-center shadow-2xl shadow-red-900/50">
-              <Sword className="w-10 h-10 text-white" strokeWidth={1.75} />
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-pink-600 flex items-center justify-center shadow-2xl shadow-cyan-900/50">
+              <Sparkles className="w-10 h-10 text-white" strokeWidth={1.75} />
             </div>
-            <div className="absolute -inset-1.5 rounded-[1.5rem] border-2 border-[#D7192F]/40 animate-pulse" />
+            <div className="absolute -inset-1.5 rounded-[1.5rem] border-2 border-cyan-400/40 animate-pulse" />
           </div>
 
           <div className="text-center space-y-1">
-            <h1 className="text-white font-black text-2xl tracking-tight">Beat Saber VR</h1>
+            <h1 className="text-white font-black text-2xl tracking-tight">Beat Burst 3D VR</h1>
             <p className="text-white/60 text-xs max-w-xs leading-relaxed mx-auto">
-              Slash blocks to the beat in full 3D! Move your phone to look around in VR or use your thumbs & mouse.
+              Tap or click glowing crystal cubes to burst them to the song&apos;s beat! Move your phone to look around in 360° VR.
             </p>
           </div>
 
-          {/* Current song display */}
+          {/* Current Song Display */}
           {currentTrack ? (
             <div className="w-full bg-white/5 rounded-2xl border border-white/10 p-3 flex items-center space-x-3">
               <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/10 flex-shrink-0">
@@ -391,7 +358,7 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
                   <img src={currentTrack.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <Sword className="w-5 h-5 text-white/40" />
+                    <Sparkles className="w-5 h-5 text-white/40" />
                   </div>
                 )}
               </div>
@@ -400,58 +367,46 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
                 <p className="text-white/50 text-xs truncate">{currentTrack.artist}</p>
               </div>
               <div className="flex-shrink-0">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
               </div>
             </div>
           ) : (
             <div className="w-full bg-white/5 rounded-2xl border border-white/10 p-3.5 flex items-center space-x-3">
               <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
-              <p className="text-white/60 text-xs">Play a song first from search or library to start slashing!</p>
+              <p className="text-white/60 text-xs">Play a song first from search or library to start bursting!</p>
             </div>
           )}
 
-          {/* ── HOW CONTROLS WORK (Interactive Visual Guide) ── */}
+          {/* Cube Types & Mechanics Card */}
           <div className="w-full bg-white/[0.04] rounded-2xl border border-white/10 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-white font-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
-                <Gamepad2 className="w-4 h-4 text-[#D7192F]" />
-                <span>How Controls Work</span>
-              </span>
-              <span className="text-white/40 text-[10px] font-medium">VR Motion Ready</span>
-            </div>
+            <span className="text-white font-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
+              <Flame className="w-4 h-4 text-cyan-400" />
+              <span>Cubes & Rewards</span>
+            </span>
 
-            {/* Split Sabers diagram */}
-            <div className="grid grid-cols-2 gap-2">
-              {/* Left red saber */}
-              <div className="rounded-xl bg-red-950/40 border border-red-500/30 p-2.5 space-y-1 text-left">
-                <div className="flex items-center space-x-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#D7192F] shadow-sm shadow-red-500" />
-                  <span className="text-red-300 font-black text-xs uppercase">Left Saber</span>
-                </div>
-                <p className="text-white/70 text-[11px] leading-snug">
-                  <span className="text-red-400 font-bold">Touch Left half</span> of phone screen or press <kbd className="px-1 py-0.5 rounded bg-black/60 border border-white/20 text-white font-mono text-[9px]">A</kbd> / <kbd className="px-1 py-0.5 rounded bg-black/60 border border-white/20 text-white font-mono text-[9px]">←</kbd>
-                </p>
-                <p className="text-red-400/90 text-[10px] font-semibold">⚡ Slices RED blocks</p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-cyan-950/40 border border-cyan-400/30 p-2 space-y-0.5">
+                <span className="text-base">💎</span>
+                <p className="text-cyan-300 font-bold text-[11px]">Cyan / Pink</p>
+                <p className="text-white/50 text-[10px]">+100 Pts</p>
               </div>
-
-              {/* Right blue saber */}
-              <div className="rounded-xl bg-cyan-950/40 border border-cyan-500/30 p-2.5 space-y-1 text-left">
-                <div className="flex items-center space-x-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#00b4ff] shadow-sm shadow-cyan-400" />
-                  <span className="text-cyan-300 font-black text-xs uppercase">Right Saber</span>
-                </div>
-                <p className="text-white/70 text-[11px] leading-snug">
-                  <span className="text-cyan-400 font-bold">Touch Right half</span> of phone screen or press <kbd className="px-1 py-0.5 rounded bg-black/60 border border-white/20 text-white font-mono text-[9px]">D</kbd> / <kbd className="px-1 py-0.5 rounded bg-black/60 border border-white/20 text-white font-mono text-[9px]">→</kbd>
-                </p>
-                <p className="text-cyan-400/90 text-[10px] font-semibold">⚡ Slices BLUE blocks</p>
+              <div className="rounded-xl bg-amber-950/40 border border-amber-400/30 p-2 space-y-0.5">
+                <span className="text-base">🌟</span>
+                <p className="text-amber-300 font-bold text-[11px]">Gold Star</p>
+                <p className="text-white/50 text-[10px]">+300 Pts</p>
+              </div>
+              <div className="rounded-xl bg-red-950/40 border border-red-500/30 p-2 space-y-0.5">
+                <span className="text-base">⚠️</span>
+                <p className="text-red-300 font-bold text-[11px]">Hazard</p>
+                <p className="text-white/50 text-[10px]">Don&apos;t Tap!</p>
               </div>
             </div>
 
-            {/* VR Look note */}
+            {/* VR feature note */}
             <div className="rounded-xl bg-indigo-950/30 border border-indigo-400/20 p-2.5 flex items-start space-x-2 text-left">
               <Smartphone className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
               <p className="text-indigo-200 text-[11px] leading-relaxed">
-                <span className="font-bold text-white">360° Phone VR Look:</span> Move and tilt your phone around in your hands — the camera looks left, right, up, down just like a real VR headset!
+                <strong className="text-white">360° VR Motion:</strong> Move your phone around in your hands to look anywhere in 3D! Tap incoming cubes on screen to burst them into neon crystal shards!
               </p>
             </div>
           </div>
@@ -483,15 +438,15 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
           <button
             onClick={handleStartGame}
             disabled={!currentTrack}
-            className="w-full py-3.5 rounded-2xl bg-[#D7192F] hover:bg-[#bf1428] disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-base tracking-wide transition-all active:scale-[0.98] shadow-2xl shadow-red-900/50 cursor-pointer flex items-center justify-center space-x-2"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-pink-600 hover:from-cyan-400 hover:to-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-base tracking-wide transition-all active:scale-[0.98] shadow-2xl shadow-cyan-900/50 cursor-pointer flex items-center justify-center space-x-2"
           >
-            <Sword className="w-5 h-5" />
-            <span>Start Slashing in VR</span>
+            <Sparkles className="w-5 h-5" />
+            <span>Start Bursting in 3D VR</span>
           </button>
         </div>
       )}
 
-      {/* ── Bottom Controls (game mode) ── */}
+      {/* ── Bottom Controls (In-Game Mode) ── */}
       {gameStarted && (
         <div className="relative z-10 mt-auto bg-gradient-to-t from-black/90 to-transparent pt-6 pb-safe-bottom pb-3 px-4">
           <div className="flex items-center justify-between max-w-sm mx-auto">
@@ -514,13 +469,13 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
               </button>
               <button
                 onClick={togglePlay}
-                className="w-10 h-10 rounded-full bg-[#D7192F] flex items-center justify-center shadow-lg shadow-red-900/50 hover:bg-[#bf1428] transition-all active:scale-95 cursor-pointer"
+                className="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center shadow-lg shadow-cyan-900/50 hover:bg-cyan-400 transition-all active:scale-95 cursor-pointer"
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? (
-                  <Pause className="w-4 h-4 text-white fill-white" />
+                  <Pause className="w-4 h-4 text-black fill-black" />
                 ) : (
-                  <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                  <Play className="w-4 h-4 text-black fill-black ml-0.5" />
                 )}
               </button>
               <button
@@ -548,11 +503,11 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
       {/* ── CONTROLS MODAL OVERLAY ── */}
       {showControlsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="bg-[#0b0e17] border border-white/20 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative">
+          <div className="bg-[#080d1a] border border-cyan-400/30 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Sword className="w-5 h-5 text-[#D7192F]" />
-                <h3 className="text-white font-black text-base">Beat Saber Controls</h3>
+                <Sparkles className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-white font-black text-base">Beat Burst Controls</h3>
               </div>
               <button
                 onClick={() => setShowControlsModal(false)}
@@ -565,42 +520,39 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
             <div className="space-y-3 text-xs">
               <div className="bg-white/5 rounded-2xl p-3 space-y-1.5 border border-white/10">
                 <p className="text-white font-black text-xs flex items-center space-x-1.5">
-                  <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
+                  <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
                   <span>On Mobile / Phone</span>
                 </p>
                 <ul className="text-white/70 space-y-1 list-disc list-inside">
-                  <li><strong className="text-white">Move Phone:</strong> Tilt & turn to look left/right/up/down in full 360° VR.</li>
-                  <li><strong className="text-red-400">Left Thumb:</strong> Touch/Swipe left half to swing Red Saber.</li>
-                  <li><strong className="text-cyan-400">Right Thumb:</strong> Touch/Swipe right half to swing Blue Saber.</li>
-                  <li><strong className="text-yellow-400">Recenter Button (🔄):</strong> Tap in top bar anytime to reset view!</li>
+                  <li><strong className="text-white">Move Phone:</strong> Tilt & turn to look left/right/up/down in 360° VR.</li>
+                  <li><strong className="text-cyan-300">Tap Any Cube:</strong> Tap directly on incoming crystal cubes to shatter them!</li>
+                  <li><strong className="text-yellow-400">Recenter View (🔄):</strong> Tap button in top bar to align camera forward.</li>
                 </ul>
               </div>
 
               <div className="bg-white/5 rounded-2xl p-3 space-y-1.5 border border-white/10">
                 <p className="text-white font-black text-xs flex items-center space-x-1.5">
-                  <MousePointer className="w-3.5 h-3.5 text-emerald-400" />
+                  <MousePointer className="w-3.5 h-3.5 text-pink-400" />
                   <span>On Laptop / Computer</span>
                 </p>
                 <ul className="text-white/70 space-y-1 list-disc list-inside">
-                  <li><strong className="text-white">Mouse Movement:</strong> Slide sabers across lanes.</li>
-                  <li><strong className="text-red-400">A / ← Key:</strong> Slash Left Red Saber.</li>
-                  <li><strong className="text-cyan-400">D / → Key:</strong> Slash Right Blue Saber.</li>
-                  <li><strong className="text-yellow-400">Spacebar:</strong> Dual Power Slash!</li>
+                  <li><strong className="text-white">Click Cubes:</strong> Click any cube to burst it into shards.</li>
+                  <li><strong className="text-white">Drag Mouse:</strong> Look around the 3D cyberpunk arena.</li>
                 </ul>
               </div>
 
               <div className="bg-white/5 rounded-2xl p-3 space-y-1 border border-white/10 text-white/70">
-                <p className="text-white font-bold text-xs">🎯 Golden Rules</p>
-                <p>• Match colors: Red cuts Red, Blue cuts Blue.</p>
-                <p>• Avoid 💣 bombs — hitting them loses combo!</p>
+                <p className="text-white font-bold text-xs">🎯 Objectives</p>
+                <p>• Burst cubes before they fly past you!</p>
+                <p>• Avoid ⚠️ Hazard Orbs — clicking them breaks your combo!</p>
               </div>
             </div>
 
             <button
               onClick={() => setShowControlsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-[#D7192F] hover:bg-[#bf1428] text-white font-bold text-xs uppercase tracking-wider transition-all"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-pink-600 hover:from-cyan-400 hover:to-pink-500 text-white font-bold text-xs uppercase tracking-wider transition-all"
             >
-              Got It, Let's Play!
+              Ready to Burst!
             </button>
           </div>
         </div>

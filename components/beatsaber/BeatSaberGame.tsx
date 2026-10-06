@@ -18,47 +18,66 @@ interface BeatSaberGameProps {
   isPlaying: boolean;
   difficulty: Difficulty;
   onScoreUpdate: (update: ScoreUpdate) => void;
-  onBlockHit: (isLeft: boolean, intensity: number) => void;
+  onBlockHit: (isSpecial: boolean, intensity: number) => void;
   onMiss: () => void;
-  bpm: number;
+  bpm?: number;
   recenterTrigger?: number;
   isGyroEnabled?: boolean;
   onGyroActive?: (active: boolean) => void;
-  slashLeftTrigger?: number;
-  slashRightTrigger?: number;
+}
+
+// ─── Sound FX Synthesizer (Zero dependencies, instant arcade pops) ────────────
+function playBurstSfx(pitch = 560, isHazard = false) {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = isHazard ? "sawtooth" : "triangle";
+    osc.frequency.setValueAtTime(isHazard ? 140 : pitch, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(isHazard ? 60 : pitch * 1.8, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.22, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.17);
+  } catch (_) {}
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LANE_X   = [-1.2, -0.4, 0.4, 1.2];
-const SPAWN_Z  = -28;
-const MISS_Z   = 3.2;
-const SABER_LEN = 1.1;
-const BLOCK_SZ  = 0.44;
-const ARROW_DIRS = ["↑","↓","←","→","↖","↗","↙","↘","●"];
+const LANE_X = [-1.5, -0.5, 0.5, 1.5];
+const SPAWN_Z = -36;
+const MISS_Z = 2.8;
+const BLOCK_SZ = 0.52;
 
-interface Block {
-  mesh: THREE.Mesh;
-  glow: THREE.Mesh;
-  isLeft: boolean;
-  isBomb: boolean;
+interface CubeItem {
+  group: THREE.Group;
+  outerMesh: THREE.Mesh;
+  innerCore: THREE.Mesh;
+  ring: THREE.Mesh;
+  pointLight?: THREE.PointLight;
+  type: "pink" | "cyan" | "gold" | "hazard";
+  lane: number;
   hit: boolean;
   missed: boolean;
+  speed: number;
 }
 
-interface Particle {
+interface ShardParticle {
   mesh: THREE.Mesh;
   vel: THREE.Vector3;
+  rotVel: THREE.Vector3;
   life: number;
   maxLife: number;
 }
 
-interface TouchPoint {
-  id: number;
-  startX: number;
-  startY: number;
-  x: number;
-  y: number;
-  side: "left" | "right";
+interface ShockwaveRing {
+  mesh: THREE.Mesh;
+  life: number;
+  maxLife: number;
+  scaleSpeed: number;
 }
 
 export default function BeatSaberGame({
@@ -67,229 +86,297 @@ export default function BeatSaberGame({
   onScoreUpdate,
   onBlockHit,
   onMiss,
-  bpm,
+  bpm = 128,
   recenterTrigger = 0,
   isGyroEnabled = true,
   onGyroActive,
-  slashLeftTrigger = 0,
-  slashRightTrigger = 0,
 }: BeatSaberGameProps) {
-  const containerRef  = useRef<HTMLDivElement>(null);
-  const rendererRef   = useRef<THREE.WebGLRenderer | null>(null);
-  const sceneRef      = useRef<THREE.Scene | null>(null);
-  const cameraRef     = useRef<THREE.PerspectiveCamera | null>(null);
-  const animRef       = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const animRef = useRef<number | null>(null);
 
-  // Camera gyro & recenter
-  const gyroRef       = useRef<{ alpha: number; beta: number; gamma: number } | null>(null);
+  // VR Gyro Tracking
+  const gyroRef = useRef<{ alpha: number; beta: number; gamma: number } | null>(null);
   const gyroActiveRef = useRef(false);
-  const refQuat       = useRef(new THREE.Quaternion());
+  const refQuat = useRef(new THREE.Quaternion());
   const needsRecenter = useRef(true);
 
-  // Keyboard / Tap slash triggers
-  const keySlashLeft  = useRef(0);
-  const keySlashRight = useRef(0);
+  // Desktop Orbit Look state
+  const mouseDragRef = useRef({ isDown: false, startX: 0, startY: 0, yaw: 0, pitch: 0 });
 
-  // Sabers
-  const leftSaberRef  = useRef<THREE.Group | null>(null);
-  const rightSaberRef = useRef<THREE.Group | null>(null);
-
-  // Saber world positions (updated per frame)
-  const leftPos   = useRef(new THREE.Vector3(-0.55, 1.0, 1.2));
-  const rightPos  = useRef(new THREE.Vector3( 0.55, 1.0, 1.2));
-  const leftPrev  = useRef(new THREE.Vector3(-0.55, 1.0, 1.2));
-  const rightPrev = useRef(new THREE.Vector3( 0.55, 1.0, 1.2));
-
-  // Split-touch tracking
-  const touchesRef = useRef<Map<number, TouchPoint>>(new Map());
-
-  // Blocks / particles
-  const blocksRef    = useRef<Block[]>([]);
-  const particlesRef = useRef<Particle[]>([]);
+  // Cubes, Shards & FX
+  const cubesRef = useRef<CubeItem[]>([]);
+  const shardsRef = useRef<ShardParticle[]>([]);
+  const shockwavesRef = useRef<ShockwaveRing[]>([]);
+  const archwaysRef = useRef<THREE.Mesh[]>([]);
+  const eqBarsRef = useRef<THREE.Mesh[]>([]);
+  const searchlightsRef = useRef<THREE.SpotLight[]>([]);
 
   // Score
   const scoreRef = useRef({ score: 0, combo: 0, multiplier: 1, misses: 0, hits: 0 });
 
-  // Spawning
+  // Rhythm Spawning
   const lastSpawnRef = useRef(0);
+  const beatTimerRef = useRef(0);
 
   // Trigger recenter on prop change
   useEffect(() => {
     needsRecenter.current = true;
+    mouseDragRef.current.yaw = 0;
+    mouseDragRef.current.pitch = 0;
   }, [recenterTrigger]);
-
-  // Trigger slash on external button tap
-  useEffect(() => {
-    if (slashLeftTrigger > 0) {
-      keySlashLeft.current = performance.now();
-    }
-  }, [slashLeftTrigger]);
-
-  useEffect(() => {
-    if (slashRightTrigger > 0) {
-      keySlashRight.current = performance.now();
-    }
-  }, [slashRightTrigger]);
 
   const getDiffCfg = useCallback(() => {
     switch (difficulty) {
-      case "easy":   return { speed: 6,  rate: 1.8, lanes: [1,2] };
-      case "normal": return { speed: 9,  rate: 1.1, lanes: [0,1,2,3] };
-      case "hard":   return { speed: 13, rate: 0.65, lanes: [0,1,2,3] };
-      case "expert": return { speed: 18, rate: 0.38, lanes: [0,1,2,3] };
+      case "easy":   return { speed: 8,  interval: 1.2,  hazardChance: 0.05, goldChance: 0.15 };
+      case "normal": return { speed: 11, interval: 0.85, hazardChance: 0.08, goldChance: 0.20 };
+      case "hard":   return { speed: 15, interval: 0.55, hazardChance: 0.12, goldChance: 0.25 };
+      case "expert": return { speed: 20, interval: 0.38, hazardChance: 0.15, goldChance: 0.30 };
     }
   }, [difficulty]);
 
-  // ── Block face canvas texture ─────────────────────────────────────────────
-  const makeBlockTex = (isLeft: boolean, dir: number, isBomb: boolean) => {
-    const c = document.createElement("canvas");
-    c.width = 128; c.height = 128;
-    const ctx = c.getContext("2d")!;
-    const g = ctx.createRadialGradient(64,64,8,64,64,72);
-    if (isBomb) {
-      g.addColorStop(0,"#555566"); g.addColorStop(1,"#222233");
-    } else if (isLeft) {
-      g.addColorStop(0,"#ff4455"); g.addColorStop(1,"#aa0011");
-    } else {
-      g.addColorStop(0,"#33bbff"); g.addColorStop(1,"#0055aa");
-    }
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.roundRect(4,4,120,120,18); ctx.fill();
-    ctx.strokeStyle = isBomb ? "#9999aa" : isLeft ? "#ff8899" : "#88ddff";
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.roundRect(10,10,108,108,14); ctx.stroke();
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 52px Arial";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(isBomb ? "💣" : ARROW_DIRS[dir] ?? "●", 64, 68);
-    return new THREE.CanvasTexture(c);
-  };
-
-  // ── Spawn block ───────────────────────────────────────────────────────────
-  const spawnBlock = useCallback((scene: THREE.Scene) => {
-    const cfg = getDiffCfg();
-    const lane = cfg.lanes[Math.floor(Math.random() * cfg.lanes.length)];
-    const isLeft = Math.random() < 0.5;
-    const isBomb = Math.random() < 0.07;
-    const dir = isBomb ? 8 : Math.floor(Math.random() * 9);
-
-    const tex = makeBlockTex(isLeft, dir, isBomb);
-    const geo = new THREE.BoxGeometry(BLOCK_SZ, BLOCK_SZ, BLOCK_SZ);
-    const mat = new THREE.MeshStandardMaterial({
-      map: tex,
-      emissive: new THREE.Color(isBomb ? 0x111122 : isLeft ? 0x660010 : 0x002266),
-      emissiveIntensity: 0.5,
-      roughness: 0.2, metalness: 0.7,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(LANE_X[lane], 1.0 + (Math.random() - 0.5) * 0.5, SPAWN_Z);
-    scene.add(mesh);
-
-    // Outline glow ring
-    const glowGeo = new THREE.BoxGeometry(BLOCK_SZ + 0.08, BLOCK_SZ + 0.08, BLOCK_SZ + 0.08);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: isBomb ? 0x555566 : isLeft ? 0xd7192f : 0x00aaff,
-      transparent: true, opacity: 0.18,
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const glow = new THREE.Mesh(glowGeo, glowMat);
-    glow.position.copy(mesh.position);
-    scene.add(glow);
-
-    blocksRef.current.push({ mesh, glow, isLeft, isBomb, hit: false, missed: false });
-  }, [getDiffCfg]);
-
-  // ── Hit explosion ─────────────────────────────────────────────────────────
-  const explode = (scene: THREE.Scene, pos: THREE.Vector3, isLeft: boolean) => {
-    const color = isLeft ? 0xff3344 : 0x22ccff;
-    for (let i = 0; i < 20; i++) {
-      const sz = 0.05 + Math.random() * 0.08;
-      const g = new THREE.OctahedronGeometry(sz);
-      const m = new THREE.MeshBasicMaterial({
-        color, transparent: true, opacity: 1,
-        blending: THREE.AdditiveBlending,
-      });
-      const mesh = new THREE.Mesh(g, m);
-      mesh.position.copy(pos);
-      scene.add(mesh);
-      const speed = 2.5 + Math.random() * 4;
-      const a = Math.random() * Math.PI * 2;
-      const el = (Math.random() - 0.5) * Math.PI;
-      particlesRef.current.push({
-        mesh,
-        vel: new THREE.Vector3(
-          Math.cos(a) * Math.cos(el) * speed,
-          Math.sin(el) * speed,
-          (Math.random() - 0.5) * speed,
-        ),
-        life: 0, maxLife: 0.4 + Math.random() * 0.25,
-      });
-    }
-  };
-
-  // ── Score helpers ─────────────────────────────────────────────────────────
-  const addScore = (intensity: number) => {
+  // ── Score Helpers ─────────────────────────────────────────────────────────
+  const registerHit = (type: CubeItem["type"]) => {
     const s = scoreRef.current;
+    if (type === "hazard") {
+      // Penalty for hazard orb
+      s.combo = 0;
+      s.multiplier = 1;
+      s.misses++;
+      playBurstSfx(120, true);
+      try { navigator.vibrate?.([60, 40, 60]); } catch (_) {}
+      onMiss();
+      onScoreUpdate({ ...s, accuracy: s.hits > 0 ? (s.hits / (s.hits + s.misses)) * 100 : 0 });
+      return;
+    }
+
     s.combo++;
-    s.multiplier = Math.min(8, 1 + Math.floor(s.combo / 8));
-    s.score += Math.round(100 * s.multiplier * (0.7 + intensity * 0.3));
+    s.multiplier = Math.min(8, 1 + Math.floor(s.combo / 6));
+    const basePts = type === "gold" ? 300 : 100;
+    s.score += basePts * s.multiplier;
     s.hits++;
+    playBurstSfx(type === "gold" ? 780 : type === "pink" ? 640 : 520, false);
+    try { navigator.vibrate?.(type === "gold" ? [40, 20, 40] : 30); } catch (_) {}
+    onBlockHit(type === "gold", 1.0);
     onScoreUpdate({ ...s, accuracy: (s.hits / (s.hits + s.misses)) * 100 });
   };
-  const doMiss = () => {
+
+  const registerMiss = () => {
     const s = scoreRef.current;
-    s.combo = 0; s.multiplier = 1; s.misses++;
+    s.combo = 0;
+    s.multiplier = 1;
+    s.misses++;
     onMiss();
     onScoreUpdate({ ...s, accuracy: s.hits > 0 ? (s.hits / (s.hits + s.misses)) * 100 : 0 });
   };
 
-  // ── Check hits ────────────────────────────────────────────────────────────
-  const checkHits = (scene: THREE.Scene) => {
-    const isLeftSlashing = performance.now() - keySlashLeft.current < 250;
-    const isRightSlashing = performance.now() - keySlashRight.current < 250;
-    const hitRadiusL = isLeftSlashing ? 1.4 : 1.0;
-    const hitRadiusR = isRightSlashing ? 1.4 : 1.0;
+  // ── Burst / Shatter Explosion Effect ──────────────────────────────────────
+  const spawnBurstEffect = (scene: THREE.Scene, pos: THREE.Vector3, type: CubeItem["type"]) => {
+    const baseColor =
+      type === "gold" ? 0xffd700 : type === "pink" ? 0xff007f : type === "hazard" ? 0xff3333 : 0x00f0ff;
 
-    blocksRef.current.forEach((b) => {
-      if (b.hit || b.missed) return;
-      const bp = b.mesh.position;
-
-      const dL = leftPos.current.distanceTo(bp);
-      const dR = rightPos.current.distanceTo(bp);
-
-      if (!b.isBomb) {
-        if (dL < hitRadiusL && b.isLeft) {
-          b.hit = true;
-          scene.remove(b.mesh); scene.remove(b.glow);
-          explode(scene, bp.clone(), true);
-          try { navigator.vibrate?.(25); } catch (_) {}
-          onBlockHit(true, 1 - Math.min(1, dL / hitRadiusL));
-          addScore(1 - dL / hitRadiusL);
-          return;
-        }
-        if (dR < hitRadiusR && !b.isLeft) {
-          b.hit = true;
-          scene.remove(b.mesh); scene.remove(b.glow);
-          explode(scene, bp.clone(), false);
-          try { navigator.vibrate?.(25); } catch (_) {}
-          onBlockHit(false, 1 - Math.min(1, dR / hitRadiusR));
-          addScore(1 - dR / hitRadiusR);
-          return;
-        }
-      } else {
-        // Bomb only explodes if directly touching
-        if (dL < 0.5 || dR < 0.5) {
-          b.missed = true;
-          scene.remove(b.mesh); scene.remove(b.glow);
-          try { navigator.vibrate?.([60, 40, 60]); } catch (_) {}
-          doMiss();
-        }
-      }
+    // 1. Expanding Shockwave Ring
+    const ringGeo = new THREE.RingGeometry(0.2, 0.45, 24);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: baseColor,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
     });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.copy(pos);
+    ringMesh.rotation.x = Math.PI / 2;
+    scene.add(ringMesh);
+    shockwavesRef.current.push({ mesh: ringMesh, life: 0, maxLife: 0.35, scaleSpeed: 7 });
+
+    // 2. Crystal Shards & Particles
+    const shardCount = 32;
+    for (let i = 0; i < shardCount; i++) {
+      const sz = 0.05 + Math.random() * 0.12;
+      const geo = Math.random() > 0.4 ? new THREE.OctahedronGeometry(sz) : new THREE.ConeGeometry(sz, sz * 1.8, 5);
+      const mat = new THREE.MeshBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 1,
+        blending: THREE.AdditiveBlending,
+      });
+      const shard = new THREE.Mesh(geo, mat);
+      shard.position.copy(pos);
+      scene.add(shard);
+
+      const theta = Math.random() * Math.PI * 2;
+      const phi = (Math.random() - 0.5) * Math.PI;
+      const speed = 3.5 + Math.random() * 5.5;
+
+      shardsRef.current.push({
+        mesh: shard,
+        vel: new THREE.Vector3(
+          Math.cos(theta) * Math.cos(phi) * speed,
+          Math.sin(phi) * speed + 0.8,
+          Math.sin(theta) * Math.cos(phi) * speed
+        ),
+        rotVel: new THREE.Vector3(
+          (Math.random() - 0.5) * 15,
+          (Math.random() - 0.5) * 15,
+          (Math.random() - 0.5) * 15
+        ),
+        life: 0,
+        maxLife: 0.45 + Math.random() * 0.3,
+      });
+    }
+
+    // 3. Flash Point Light
+    const flashLight = new THREE.PointLight(baseColor, 5.0, 6);
+    flashLight.position.copy(pos);
+    scene.add(flashLight);
+    setTimeout(() => {
+      scene.remove(flashLight);
+      flashLight.dispose();
+    }, 120);
   };
 
-  // ── Three.js scene setup ──────────────────────────────────────────────────
+  // ── Tap / Click Raycasting to Burst Cubes ──────────────────────────────────
+  const handleBurstAtScreenCoord = useCallback(
+    (clientX: number, clientY: number) => {
+      const container = containerRef.current;
+      const camera = cameraRef.current;
+      const scene = sceneRef.current;
+      if (!container || !camera || !scene) return;
+
+      const rect = container.getBoundingClientRect();
+      const mouseX = ((clientX - rect.left) / rect.width) * 2 - 1;
+      const mouseY = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
+
+      // Check direct mesh raycasting
+      const activeCubes = cubesRef.current.filter((c) => !c.hit && !c.missed);
+      const meshesToTest = activeCubes.map((c) => c.outerMesh);
+      const intersects = raycaster.intersectObjects(meshesToTest, false);
+
+      let targetCube: CubeItem | null = null;
+
+      if (intersects.length > 0) {
+        const hitMesh = intersects[0].object;
+        targetCube = activeCubes.find((c) => c.outerMesh === hitMesh) || null;
+      }
+
+      // Proximity assist (if tapped near an incoming cube or center tap)
+      if (!targetCube) {
+        const ray = raycaster.ray;
+        let closestDist = 1.35; // generous hit radius
+        activeCubes.forEach((c) => {
+          if (c.group.position.z > -16 && c.group.position.z < 2.5) {
+            const dist = ray.distanceToPoint(c.group.position);
+            if (dist < closestDist) {
+              closestDist = dist;
+              targetCube = c;
+            }
+          }
+        });
+      }
+
+      if (targetCube) {
+        const c = targetCube as CubeItem;
+        c.hit = true;
+        scene.remove(c.group);
+        spawnBurstEffect(scene, c.group.position, c.type);
+        registerHit(c.type);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // ── Spawn Futuristic Crystal Cube ─────────────────────────────────────────
+  const spawnCube = useCallback(
+    (scene: THREE.Scene) => {
+      const cfg = getDiffCfg();
+      const lane = Math.floor(Math.random() * LANE_X.length);
+      const rand = Math.random();
+
+      let type: CubeItem["type"] = "cyan";
+      if (rand < cfg.hazardChance) type = "hazard";
+      else if (rand < cfg.hazardChance + cfg.goldChance) type = "gold";
+      else if (rand < 0.6) type = "pink";
+
+      const group = new THREE.Group();
+      const colorHex =
+        type === "gold" ? 0xffd700 : type === "pink" ? 0xff007f : type === "hazard" ? 0xff2222 : 0x00f0ff;
+
+      // 1. Outer Holographic Crystal Cube
+      const outerGeo = new THREE.BoxGeometry(BLOCK_SZ, BLOCK_SZ, BLOCK_SZ);
+      const outerMat = new THREE.MeshPhysicalMaterial({
+        color: colorHex,
+        emissive: new THREE.Color(colorHex),
+        emissiveIntensity: 0.65,
+        roughness: 0.1,
+        metalness: 0.4,
+        transparent: true,
+        opacity: 0.85,
+        transmission: 0.25,
+      });
+      const outerMesh = new THREE.Mesh(outerGeo, outerMat);
+      group.add(outerMesh);
+
+      // Neon Wireframe Edge Edges
+      const edgesGeo = new THREE.EdgesGeometry(outerGeo);
+      const edgesMat = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        linewidth: 2,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const edgeLines = new THREE.LineSegments(edgesGeo, edgesMat);
+      outerMesh.add(edgeLines);
+
+      // 2. Inner Pulsating Energy Core
+      const innerGeo =
+        type === "hazard"
+          ? new THREE.SphereGeometry(BLOCK_SZ * 0.35, 12, 12)
+          : new THREE.OctahedronGeometry(BLOCK_SZ * 0.32);
+      const innerMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        wireframe: type === "hazard",
+      });
+      const innerCore = new THREE.Mesh(innerGeo, innerMat);
+      group.add(innerCore);
+
+      // 3. Orbiting Gyro Ring
+      const ringGeo = new THREE.TorusGeometry(BLOCK_SZ * 0.65, 0.02, 8, 24);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 4;
+      group.add(ring);
+
+      group.position.set(LANE_X[lane], 1.2 + (Math.random() - 0.5) * 0.4, SPAWN_Z);
+      scene.add(group);
+
+      cubesRef.current.push({
+        group,
+        outerMesh,
+        innerCore,
+        ring,
+        type,
+        lane,
+        hit: false,
+        missed: false,
+        speed: cfg.speed,
+      });
+    },
+    [getDiffCfg]
+  );
+
+  // ── Three.js Scene Setup ──────────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -299,118 +386,124 @@ export default function BeatSaberGame({
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.2;
     container.innerHTML = "";
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x030508);
-    scene.fog = new THREE.FogExp2(0x06091a, 0.022);
+    scene.background = new THREE.Color(0x02040a);
+    scene.fog = new THREE.FogExp2(0x040816, 0.024);
     sceneRef.current = scene;
 
-    // Camera — first-person, looking forward down the track
-    const camera = new THREE.PerspectiveCamera(80, container.clientWidth / container.clientHeight, 0.05, 200);
-    camera.position.set(0, 1.6, 3.5);
+    // Camera
+    const camera = new THREE.PerspectiveCamera(78, container.clientWidth / container.clientHeight, 0.1, 300);
+    camera.position.set(0, 1.5, 3.2);
     cameraRef.current = camera;
 
-    // ── Lights ──
-    scene.add(new THREE.AmbientLight(0x1a1a3a, 1.8));
-    const lSpot = new THREE.SpotLight(0xd7192f, 5, 22, Math.PI / 5, 0.4);
-    lSpot.position.set(-3, 7, 0); lSpot.target.position.set(-1, 0, -5);
-    scene.add(lSpot, lSpot.target);
-    const rSpot = new THREE.SpotLight(0x00b4ff, 5, 22, Math.PI / 5, 0.4);
-    rSpot.position.set(3, 7, 0); rSpot.target.position.set(1, 0, -5);
-    scene.add(rSpot, rSpot.target);
+    // ── Lighting ──
+    scene.add(new THREE.AmbientLight(0x1a243b, 1.5));
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    mainLight.position.set(0, 10, 5);
+    scene.add(mainLight);
 
-    // ── Floor track ──
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x080b18, roughness: 0.08, metalness: 0.95 });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 60), floorMat);
-    floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -25);
-    scene.add(floor);
+    // Sweeping Searchlights
+    const slColors = [0x00f0ff, 0xff007f, 0x9d00ff, 0x00ff88];
+    const searchlights: THREE.SpotLight[] = [];
+    slColors.forEach((col, i) => {
+      const sl = new THREE.SpotLight(col, 4.5, 35, Math.PI / 6, 0.5);
+      sl.position.set((i - 1.5) * 4, 12, -10);
+      sl.target.position.set((i - 1.5) * 2, 0, -25);
+      scene.add(sl);
+      scene.add(sl.target);
+      searchlights.push(sl);
+    });
+    searchlightsRef.current = searchlights;
 
-    // Lane dividers
-    for (let i = 0; i <= 4; i++) {
-      const lm = new THREE.Mesh(
-        new THREE.BoxGeometry(0.025, 0.015, 60),
-        new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0x334466 : 0x222244, transparent: true, opacity: 0.6 })
-      );
-      lm.position.set(-2.1 + i * 1.05, 0.01, -25); scene.add(lm);
+    // ── Infinite Reflective Cyber Track ──
+    const trackMat = new THREE.MeshStandardMaterial({
+      color: 0x050814,
+      roughness: 0.15,
+      metalness: 0.9,
+    });
+    const track = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 80), trackMat);
+    track.rotation.x = -Math.PI / 2;
+    track.position.set(0, 0, -28);
+    scene.add(track);
+
+    // Neon Track Divider Rails
+    for (let l = -2; l <= 2; l++) {
+      const railGeo = new THREE.BoxGeometry(0.04, 0.02, 80);
+      const railMat = new THREE.MeshBasicMaterial({
+        color: l === -2 || l === 2 ? 0xff007f : 0x00f0ff,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+      });
+      const rail = new THREE.Mesh(railGeo, railMat);
+      rail.position.set(l * 1.05, 0.02, -28);
+      scene.add(rail);
     }
 
-    // Neon edge rails
-    const mkEdge = (x: number, col: number) => {
-      const m = new THREE.Mesh(
-        new THREE.BoxGeometry(0.07, 0.07, 60),
-        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending })
-      );
-      m.position.set(x, 0.04, -25); scene.add(m);
-    };
-    mkEdge(-2.1, 0xd7192f); mkEdge(2.1, 0x00b4ff);
+    // ── Neon Hexagonal Archways Over Highway ──
+    const archways: THREE.Mesh[] = [];
+    for (let a = 0; a < 6; a++) {
+      const archGeo = new THREE.TorusGeometry(3.2, 0.05, 6, 6);
+      const archMat = new THREE.MeshBasicMaterial({
+        color: a % 2 === 0 ? 0x00f0ff : 0xff007f,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+      });
+      const arch = new THREE.Mesh(archGeo, archMat);
+      arch.position.set(0, 1.8, -6 - a * 6);
+      scene.add(arch);
+      archways.push(arch);
+    }
+    archwaysRef.current = archways;
 
-    // Side walls (cyberpunk panels)
-    [-3.8, 3.8].forEach((sx) => {
-      const wall = new THREE.Mesh(
-        new THREE.PlaneGeometry(60, 6),
-        new THREE.MeshStandardMaterial({ color: 0x080c1a, roughness: 0.7, metalness: 0.4 })
-      );
-      wall.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;
-      wall.position.set(sx, 3, -25); scene.add(wall);
+    // ── Equalizer Visualizer Towers Flanking Track ──
+    const eqBars: THREE.Mesh[] = [];
+    const numBars = 18;
+    for (let b = 0; b < numBars; b++) {
+      [-3.6, 3.6].forEach((sideX) => {
+        const barGeo = new THREE.BoxGeometry(0.35, 1, 0.35);
+        const barMat = new THREE.MeshStandardMaterial({
+          color: sideX < 0 ? 0xff007f : 0x00f0ff,
+          emissive: sideX < 0 ? 0x660033 : 0x003366,
+          roughness: 0.3,
+          metalness: 0.7,
+        });
+        const barMesh = new THREE.Mesh(barGeo, barMat);
+        barMesh.position.set(sideX, 0.5, -4 - b * 2);
+        scene.add(barMesh);
+        eqBars.push(barMesh);
+      });
+    }
+    eqBarsRef.current = eqBars;
+
+    // ── Deep Starfield & Floating Cyber Dust ──
+    const starCount = 300;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(starCount * 3);
+    for (let s = 0; s < starCount * 3; s += 3) {
+      starPos[s] = (Math.random() - 0.5) * 60;
+      starPos[s + 1] = Math.random() * 25 + 1;
+      starPos[s + 2] = (Math.random() - 0.5) * 80;
+    }
+    starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({
+      color: 0x88ccff,
+      size: 0.15,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
     });
+    const starField = new THREE.Points(starGeo, starMat);
+    scene.add(starField);
 
-    // Ceiling light strip
-    const ceilStrip = new THREE.Mesh(
-      new THREE.BoxGeometry(4, 0.1, 60),
-      new THREE.MeshBasicMaterial({ color: 0x111133, transparent: true, opacity: 0.9 })
-    );
-    ceilStrip.position.set(0, 5.5, -25); scene.add(ceilStrip);
-
-    // ── Build sabers ──────────────────────────────────────────────────────
-    const buildSaber = (isLeft: boolean): THREE.Group => {
-      const g = new THREE.Group();
-      // Handle
-      const handle = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.030, 0.035, 0.28, 12),
-        new THREE.MeshStandardMaterial({ color: 0x1a1a2a, roughness: 0.15, metalness: 0.95 })
-      );
-      handle.position.y = 0.14; g.add(handle);
-
-      // Blade
-      const bladeCol = isLeft ? 0xd7192f : 0x00aaff;
-      const blade = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.017, 0.021, SABER_LEN, 10),
-        new THREE.MeshBasicMaterial({ color: bladeCol })
-      );
-      blade.position.y = 0.28 + SABER_LEN / 2; g.add(blade);
-
-      // Glow halo
-      const glow = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.06, SABER_LEN, 10),
-        new THREE.MeshBasicMaterial({
-          color: isLeft ? 0xff3344 : 0x22ccff,
-          transparent: true, opacity: 0.28,
-          blending: THREE.AdditiveBlending,
-        })
-      );
-      glow.position.y = 0.28 + SABER_LEN / 2; g.add(glow);
-
-      // Tip light
-      const tip = new THREE.PointLight(bladeCol, 2.8, 2.0);
-      tip.position.y = 0.28 + SABER_LEN + 0.1; g.add(tip);
-
-      return g;
-    };
-
-    const lSaber = buildSaber(true);
-    const rSaber = buildSaber(false);
-    lSaber.position.copy(leftPos.current);
-    rSaber.position.copy(rightPos.current);
-    scene.add(lSaber); scene.add(rSaber);
-    leftSaberRef.current = lSaber;
-    rightSaberRef.current = rSaber;
-
-    // ── Gyroscope (device orientation) → camera ───────────────────────────
+    // ── Mobile Device Orientation (Gyro VR) ──
     const onOrientation = (e: DeviceOrientationEvent) => {
       if (e.alpha !== null && e.beta !== null && e.gamma !== null) {
         gyroRef.current = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
@@ -422,105 +515,57 @@ export default function BeatSaberGame({
     };
     window.addEventListener("deviceorientation", onOrientation);
 
-    // ── Keyboard controls for PC / Laptop ─────────────────────────────────
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.repeat) return;
-      const k = e.key.toLowerCase();
-      if (k === "a" || k === "arrowleft" || k === "q") {
-        keySlashLeft.current = performance.now();
-      }
-      if (k === "d" || k === "arrowright" || k === "e") {
-        keySlashRight.current = performance.now();
-      }
-      if (k === " " || k === "w" || k === "arrowup") {
-        keySlashLeft.current = performance.now();
-        keySlashRight.current = performance.now();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-
-    // ── Split-touch: left half = left saber, right half = right saber ─────
-    const W = () => container.clientWidth;
-    const H = () => container.clientHeight;
-
-    const onTouchStart = (e: TouchEvent) => {
-      e.preventDefault();
-      Array.from(e.changedTouches).forEach((t) => {
-        const side = t.clientX < W() / 2 ? "left" : "right";
-        if (side === "left") keySlashLeft.current = performance.now();
-        if (side === "right") keySlashRight.current = performance.now();
-        touchesRef.current.set(t.identifier, {
-          id: t.identifier,
-          startX: t.clientX, startY: t.clientY,
-          x: t.clientX, y: t.clientY, side,
-        });
-      });
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      e.preventDefault();
-      Array.from(e.changedTouches).forEach((t) => {
-        const tp = touchesRef.current.get(t.identifier);
-        if (tp) {
-          // Detect rapid swipe velocity for slash effect
-          const dy = Math.abs(t.clientY - tp.y);
-          if (dy > 12) {
-            if (tp.side === "left") keySlashLeft.current = performance.now();
-            if (tp.side === "right") keySlashRight.current = performance.now();
-          }
-          tp.x = t.clientX;
-          tp.y = t.clientY;
-        }
-      });
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      Array.from(e.changedTouches).forEach((t) => {
-        touchesRef.current.delete(t.identifier);
-      });
-    };
-
+    // ── Touch and Mouse Input Handling (Tap to Burst!) ──
     const dom = renderer.domElement;
-    dom.addEventListener("touchstart", onTouchStart, { passive: false });
-    dom.addEventListener("touchmove",  onTouchMove,  { passive: false });
-    dom.addEventListener("touchend",   onTouchEnd,   { passive: false });
 
-    // Mouse control — tracking + slash on click
-    let mouseDown = false;
-    let mx = container.clientWidth / 2;
-    let my = container.clientHeight / 2;
-    const onMouseDown = (e: MouseEvent) => {
-      mouseDown = true;
-      mx = e.clientX;
-      my = e.clientY;
-      if (e.button === 0) {
-        keySlashLeft.current = performance.now();
-      } else if (e.button === 2) {
-        keySlashRight.current = performance.now();
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      let clientX = 0;
+      let clientY = 0;
+      if ("touches" in e) {
+        if (e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        }
+      } else {
+        clientX = (e as MouseEvent).clientX;
+        clientY = (e as MouseEvent).clientY;
+        mouseDragRef.current.isDown = true;
+        mouseDragRef.current.startX = clientX;
+        mouseDragRef.current.startY = clientY;
       }
+      handleBurstAtScreenCoord(clientX, clientY);
     };
-    const onMouseMove = (e: MouseEvent) => {
-      mx = e.clientX;
-      my = e.clientY;
-    };
-    const onMouseUp = () => { mouseDown = false; };
-    const onContextMenu = (e: MouseEvent) => { e.preventDefault(); };
 
-    window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup",   onMouseUp);
-    window.addEventListener("contextmenu", onContextMenu);
+    const onPointerMove = (e: MouseEvent) => {
+      if (!mouseDragRef.current.isDown) return;
+      const dx = e.clientX - mouseDragRef.current.startX;
+      const dy = e.clientY - mouseDragRef.current.startY;
+      mouseDragRef.current.startX = e.clientX;
+      mouseDragRef.current.startY = e.clientY;
+      mouseDragRef.current.yaw -= dx * 0.005;
+      mouseDragRef.current.pitch = Math.max(-0.6, Math.min(0.6, mouseDragRef.current.pitch - dy * 0.005));
+    };
+
+    const onPointerUp = () => {
+      mouseDragRef.current.isDown = false;
+    };
+
+    dom.addEventListener("touchstart", onPointerDown, { passive: false });
+    dom.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("mousemove", onPointerMove);
+    window.addEventListener("mouseup", onPointerUp);
 
     // Resize
     const onResize = () => {
-      const w = container.clientWidth, h = container.clientHeight;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
     window.addEventListener("resize", onResize);
 
-    // ── Render loop ───────────────────────────────────────────────────────
+    // ── Render Loop ──
     let lastTime = performance.now();
 
     const animate = (now: number) => {
@@ -529,14 +574,34 @@ export default function BeatSaberGame({
       lastTime = now;
       const elapsed = now / 1000;
 
-      // ── Camera: VR Gyro tilt / orientation look around ───────────────
+      // ── Song Beat Pulse & Frequency ──
+      const beatInterval = 60 / (bpm || 128);
+      beatTimerRef.current += dt;
+      const beatProgress = (beatTimerRef.current % beatInterval) / beatInterval;
+      const beatPulse = Math.sin(beatProgress * Math.PI) * 0.25;
+
+      // Pulse Equalizer Towers to Beat
+      eqBarsRef.current.forEach((bar, idx) => {
+        const h = Math.max(0.4, Math.sin(elapsed * 8 + idx * 0.6) * 1.8 + beatPulse * 2.2 + 0.8);
+        bar.scale.y = h;
+        bar.position.y = h / 2;
+      });
+
+      // Sway Searchlights to Beat
+      searchlightsRef.current.forEach((sl, idx) => {
+        const sweep = Math.sin(elapsed * 2.5 + idx * 1.5) * 6;
+        sl.target.position.x = sweep;
+      });
+
+      // ── 360° VR Gyro Look ──
       if (isGyroEnabled && gyroActiveRef.current && gyroRef.current) {
         const { alpha, beta, gamma } = gyroRef.current;
-        const screenAngle = (typeof window !== "undefined" && ((window.screen?.orientation?.angle) ?? (window.orientation as number) ?? 0)) || 0;
+        const screenAngle =
+          (typeof window !== "undefined" && ((window.screen?.orientation?.angle) ?? (window.orientation as number) ?? 0)) || 0;
 
-        const _alpha  = THREE.MathUtils.degToRad(alpha);
-        const _beta   = THREE.MathUtils.degToRad(beta);
-        const _gamma  = THREE.MathUtils.degToRad(gamma);
+        const _alpha = THREE.MathUtils.degToRad(alpha);
+        const _beta  = THREE.MathUtils.degToRad(beta);
+        const _gamma = THREE.MathUtils.degToRad(gamma);
         const _orient = THREE.MathUtils.degToRad(screenAngle);
 
         const euler = new THREE.Euler(_beta, _alpha, -_gamma, "YXZ");
@@ -552,163 +617,79 @@ export default function BeatSaberGame({
         }
 
         const targetQ = refQuat.current.clone().multiply(deviceQ);
-        // Smoother, gentle damping so touch taps don't shake the camera
-        camera.quaternion.slerp(targetQ, 0.08);
+        camera.quaternion.slerp(targetQ, 0.12);
       } else {
-        // Steady fixed forward camera for easy, locked-in arcade rhythm play
-        camera.rotation.set(0, 0, 0, "YXZ");
+        // Desktop mouse drag or gentle idle bob
+        const { yaw, pitch } = mouseDragRef.current;
+        camera.rotation.set(pitch, yaw, 0, "YXZ");
       }
 
-      // ── Saber positions from touch ────────────────────────────────────
-      const w = W(), h = H();
-      let leftTouchX: number | null = null,  leftTouchY: number | null = null;
-      let rightTouchX: number | null = null, rightTouchY: number | null = null;
-
-      touchesRef.current.forEach((tp) => {
-        if (tp.side === "left")  { leftTouchX  = tp.x; leftTouchY  = tp.y; }
-        if (tp.side === "right") { rightTouchX = tp.x; rightTouchY = tp.y; }
-      });
-
-      if (leftTouchX !== null && leftTouchY !== null) {
-        // Map touch position on screen → saber world position
-        const nx = ((leftTouchX as number) / w) * 2 - 1;
-        const ny = -((leftTouchY as number) / h) * 2 + 1;
-        leftPos.current.x = THREE.MathUtils.lerp(leftPos.current.x, THREE.MathUtils.clamp(nx * 1.6 - 0.2, -1.9, 0.3), 0.35);
-        leftPos.current.y = THREE.MathUtils.lerp(leftPos.current.y, THREE.MathUtils.clamp(ny * 0.9 + 1.0, 0.2, 2.5), 0.35);
-      } else if (!touchesRef.current.size) {
-        // Mouse control fallback
-        const nx = (mx / w) * 2 - 1;
-        const ny = -(my / h) * 2 + 1;
-        leftPos.current.x = THREE.MathUtils.lerp(leftPos.current.x, nx * 1.4 - 0.35, 0.25);
-        leftPos.current.y = THREE.MathUtils.lerp(leftPos.current.y, THREE.MathUtils.clamp(ny * 0.8 + 1.0, 0.3, 2.4), 0.25);
-      } else {
-        // Return left saber to idle
-        leftPos.current.x = THREE.MathUtils.lerp(leftPos.current.x, -0.55 + Math.sin(elapsed * 1.8) * 0.03, 0.08);
-        leftPos.current.y = THREE.MathUtils.lerp(leftPos.current.y, 1.0, 0.08);
-      }
-
-      if (rightTouchX !== null && rightTouchY !== null) {
-        const nx = ((rightTouchX as number) / w) * 2 - 1;
-        const ny = -((rightTouchY as number) / h) * 2 + 1;
-        rightPos.current.x = THREE.MathUtils.lerp(rightPos.current.x, THREE.MathUtils.clamp(nx * 1.6 + 0.2, -0.3, 1.9), 0.35);
-        rightPos.current.y = THREE.MathUtils.lerp(rightPos.current.y, THREE.MathUtils.clamp(ny * 0.9 + 1.0, 0.2, 2.5), 0.35);
-      } else if (!touchesRef.current.size) {
-        // Mouse control fallback
-        const nx = (mx / w) * 2 - 1;
-        const ny = -(my / h) * 2 + 1;
-        rightPos.current.x = THREE.MathUtils.lerp(rightPos.current.x, nx * 1.4 + 0.35, 0.25);
-        rightPos.current.y = THREE.MathUtils.lerp(rightPos.current.y, THREE.MathUtils.clamp(ny * 0.8 + 1.0, 0.3, 2.4), 0.25);
-      } else {
-        rightPos.current.x = THREE.MathUtils.lerp(rightPos.current.x, 0.55 - Math.sin(elapsed * 1.8) * 0.03, 0.08);
-        rightPos.current.y = THREE.MathUtils.lerp(rightPos.current.y, 1.0, 0.08);
-      }
-
-      // ── Slash motion animation & Auto-Snap Lane Assist ──────────────────
-      const leftSlashAge = now - keySlashLeft.current;
-      let leftSlashZOffset = 0;
-      let leftSlashTilt = 0;
-      if (leftSlashAge < 220) {
-        const p = leftSlashAge / 220;
-        leftSlashZOffset = -Math.sin(p * Math.PI) * 0.7;
-        leftSlashTilt = Math.sin(p * Math.PI) * 1.0;
-
-        // Auto-snap assist: find closest incoming red block
-        let targetRed: Block | null = null;
-        let bestRedDist = 999;
-        blocksRef.current.forEach((b) => {
-          if (!b.hit && !b.missed && b.isLeft && !b.isBomb && b.mesh.position.z > -4.5 && b.mesh.position.z < 2.5) {
-            const dz = Math.abs(b.mesh.position.z - 0.2);
-            if (dz < bestRedDist) {
-              bestRedDist = dz;
-              targetRed = b;
-            }
-          }
-        });
-        if (targetRed) {
-          leftPos.current.x = THREE.MathUtils.lerp(leftPos.current.x, (targetRed as Block).mesh.position.x, 0.75);
-          leftPos.current.y = THREE.MathUtils.lerp(leftPos.current.y, (targetRed as Block).mesh.position.y, 0.75);
-        }
-      }
-
-      const rightSlashAge = now - keySlashRight.current;
-      let rightSlashZOffset = 0;
-      let rightSlashTilt = 0;
-      if (rightSlashAge < 220) {
-        const p = rightSlashAge / 220;
-        rightSlashZOffset = -Math.sin(p * Math.PI) * 0.7;
-        rightSlashTilt = Math.sin(p * Math.PI) * 1.0;
-
-        // Auto-snap assist: find closest incoming blue block
-        let targetBlue: Block | null = null;
-        let bestBlueDist = 999;
-        blocksRef.current.forEach((b) => {
-          if (!b.hit && !b.missed && !b.isLeft && !b.isBomb && b.mesh.position.z > -4.5 && b.mesh.position.z < 2.5) {
-            const dz = Math.abs(b.mesh.position.z - 0.2);
-            if (dz < bestBlueDist) {
-              bestBlueDist = dz;
-              targetBlue = b;
-            }
-          }
-        });
-        if (targetBlue) {
-          rightPos.current.x = THREE.MathUtils.lerp(rightPos.current.x, (targetBlue as Block).mesh.position.x, 0.75);
-          rightPos.current.y = THREE.MathUtils.lerp(rightPos.current.y, (targetBlue as Block).mesh.position.y, 0.75);
-        }
-      }
-
-      // Saber swing rotation based on velocity + slash pulse
-      const lVel = new THREE.Vector3().subVectors(leftPos.current,  lSaber.position);
-      const rVel = new THREE.Vector3().subVectors(rightPos.current, rSaber.position);
-      lSaber.rotation.z = THREE.MathUtils.lerp(lSaber.rotation.z, -Math.atan2(lVel.y, lVel.x) * 0.55 - 0.2, 0.25);
-      rSaber.rotation.z = THREE.MathUtils.lerp(rSaber.rotation.z, -Math.atan2(rVel.y, rVel.x) * 0.55 + 0.2, 0.25);
-      lSaber.rotation.x = THREE.MathUtils.lerp(lSaber.rotation.x, leftSlashTilt, 0.3);
-      rSaber.rotation.x = THREE.MathUtils.lerp(rSaber.rotation.x, rightSlashTilt, 0.3);
-
-      leftPos.current.z = 1.2 + leftSlashZOffset;
-      rightPos.current.z = 1.2 + rightSlashZOffset;
-
-      lSaber.position.copy(leftPos.current);
-      rSaber.position.copy(rightPos.current);
-
-      // ── Block spawning ────────────────────────────────────────────────
+      // ── Spawn Cubes in Rhythm to Beat ──
       const cfg = getDiffCfg();
-      if (isPlaying && elapsed - lastSpawnRef.current >= cfg.rate) {
+      if (isPlaying && elapsed - lastSpawnRef.current >= cfg.interval) {
         lastSpawnRef.current = elapsed;
-        spawnBlock(scene);
+        spawnCube(scene);
         if ((difficulty === "hard" || difficulty === "expert") && Math.random() < 0.4) {
-          spawnBlock(scene);
+          spawnCube(scene);
         }
       }
 
-      // ── Move blocks ───────────────────────────────────────────────────
-      blocksRef.current.forEach((b) => {
-        if (b.hit || b.missed) return;
-        b.mesh.position.z += cfg.speed * dt;
-        b.glow.position.z  += cfg.speed * dt;
-        b.mesh.rotation.y  += dt * 0.6;
-        b.glow.rotation.y  += dt * 0.6;
-        if (b.mesh.position.z > MISS_Z) {
-          b.missed = true;
-          scene.remove(b.mesh); scene.remove(b.glow);
-          doMiss();
+      // ── Move & Rotate Cubes ──
+      cubesRef.current.forEach((c) => {
+        if (c.hit || c.missed) return;
+        c.group.position.z += c.speed * dt;
+        c.innerCore.rotation.x += dt * 3.5;
+        c.innerCore.rotation.y += dt * 4.0;
+        c.ring.rotation.z += dt * 2.8;
+
+        // Cube beat pulse
+        const s = 1 + beatPulse * 0.15;
+        c.outerMesh.scale.set(s, s, s);
+
+        // Check miss
+        if (c.group.position.z > MISS_Z) {
+          c.missed = true;
+          scene.remove(c.group);
+          if (c.type !== "hazard") {
+            registerMiss();
+          }
         }
       });
-      blocksRef.current = blocksRef.current.filter((b) => !b.hit && !b.missed);
+      cubesRef.current = cubesRef.current.filter((c) => !c.hit && !c.missed);
 
-      // ── Hit detection ─────────────────────────────────────────────────
-      checkHits(scene);
-
-      // ── Particles ─────────────────────────────────────────────────────
-      particlesRef.current.forEach((p) => {
-        p.life += dt;
-        p.mesh.position.addScaledVector(p.vel, dt);
-        p.vel.y -= 5 * dt;
-        const t = p.life / p.maxLife;
-        (p.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - t;
-        p.mesh.scale.setScalar(1 - t * 0.5);
+      // ── Animate Shards ──
+      shardsRef.current.forEach((sh) => {
+        sh.life += dt;
+        sh.mesh.position.addScaledVector(sh.vel, dt);
+        sh.vel.y -= 7.5 * dt; // gravity
+        sh.mesh.rotation.x += sh.rotVel.x * dt;
+        sh.mesh.rotation.y += sh.rotVel.y * dt;
+        const progress = sh.life / sh.maxLife;
+        (sh.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - progress;
+        sh.mesh.scale.setScalar(1 - progress * 0.4);
       });
-      particlesRef.current = particlesRef.current.filter((p) => {
-        if (p.life >= p.maxLife) { scene.remove(p.mesh); return false; }
+      shardsRef.current = shardsRef.current.filter((sh) => {
+        if (sh.life >= sh.maxLife) {
+          scene.remove(sh.mesh);
+          sh.mesh.geometry.dispose();
+          return false;
+        }
+        return true;
+      });
+
+      // ── Animate Shockwaves ──
+      shockwavesRef.current.forEach((sw) => {
+        sw.life += dt;
+        const s = 1 + sw.life * sw.scaleSpeed;
+        sw.mesh.scale.set(s, s, s);
+        (sw.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - sw.life / sw.maxLife;
+      });
+      shockwavesRef.current = shockwavesRef.current.filter((sw) => {
+        if (sw.life >= sw.maxLife) {
+          scene.remove(sw.mesh);
+          sw.mesh.geometry.dispose();
+          return false;
+        }
         return true;
       });
 
@@ -720,26 +701,23 @@ export default function BeatSaberGame({
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
       window.removeEventListener("deviceorientation", onOrientation);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup",   onMouseUp);
-      window.removeEventListener("contextmenu", onContextMenu);
-      window.removeEventListener("resize",    onResize);
-      dom.removeEventListener("touchstart", onTouchStart);
-      dom.removeEventListener("touchmove",  onTouchMove);
-      dom.removeEventListener("touchend",   onTouchEnd);
+      window.removeEventListener("mousemove", onPointerMove);
+      window.removeEventListener("mouseup", onPointerUp);
+      window.removeEventListener("resize", onResize);
+      dom.removeEventListener("touchstart", onPointerDown);
+      dom.removeEventListener("mousedown", onPointerDown);
       renderer.dispose();
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
-      blocksRef.current = [];
-      particlesRef.current = [];
+      cubesRef.current = [];
+      shardsRef.current = [];
+      shockwavesRef.current = [];
     };
-  }, [difficulty]);
+  }, [difficulty, isPlaying, isGyroEnabled, getDiffCfg, spawnCube, handleBurstAtScreenCoord, bpm]);
 
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 w-full h-full overflow-hidden select-none"
+      className="absolute inset-0 w-full h-full overflow-hidden select-none cursor-crosshair"
       style={{ touchAction: "none" }}
     />
   );
