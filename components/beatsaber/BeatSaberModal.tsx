@@ -309,20 +309,6 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
               <div className={`absolute -bottom-1 w-0.5 h-1.5 transition-colors ${isLockedOn ? "bg-emerald-400" : "bg-cyan-400/70"}`} />
               <div className={`absolute -left-1 h-0.5 w-1.5 transition-colors ${isLockedOn ? "bg-emerald-400" : "bg-cyan-400/70"}`} />
               <div className={`absolute -right-1 h-0.5 w-1.5 transition-colors ${isLockedOn ? "bg-emerald-400" : "bg-cyan-400/70"}`} />
-
-              {/* Lock-on Badge */}
-              {isLockedOn && (
-                <div className="absolute -top-6 px-1.5 py-0.5 rounded-full bg-black/85 border border-emerald-400/70 text-[9px] font-black tracking-widest text-emerald-300 shadow-lg animate-pulse whitespace-nowrap">
-                  LOCKED · TAP!
-                </div>
-              )}
-
-              {/* Misfire Badge */}
-              {misfireFlash && (
-                <div className="absolute -top-6 px-1.5 py-0.5 rounded-full bg-black/85 border border-red-500/70 text-[9px] font-black tracking-widest text-red-400 shadow-lg whitespace-nowrap">
-                  NO TARGET
-                </div>
-              )}
             </div>
           </div>
 
