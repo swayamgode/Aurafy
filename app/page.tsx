@@ -11,7 +11,6 @@ import PlaylistCard from "@/components/PlaylistCard";
 import SongCard from "@/components/SongCard";
 import {
   FAVOURITE_ARTISTS,
-  TRENDING_PLAYLISTS,
 } from "@/lib/youtube";
 import { getAllOfflineTracks } from "@/lib/offlineStorage";
 import { Playlist, Track } from "@/types/music";
@@ -263,19 +262,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Trending Playlists Grid */}
-        <section aria-label="Trending Playlists">
-          <div className="flex items-center justify-between mb-3.5">
-            <h3 className="text-base sm:text-lg font-extrabold text-black tracking-tight">
-              Trending Playlists
-            </h3>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 sm:gap-4">
-            {TRENDING_PLAYLISTS.map((pl) => (
-              <PlaylistCard key={pl.id} playlist={pl} />
-            ))}
-          </div>
-        </section>
 
         {/* For You / Downloaded Songs List */}
         {activeSongs.length > 0 ? (

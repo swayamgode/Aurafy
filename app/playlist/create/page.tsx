@@ -15,12 +15,16 @@ import { api } from "@/convex/_generated/api";
 const GUEST_USER_ID = "guest";
 
 const COVER_PRESETS = [
-  "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?q=80&w=600&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=600&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?q=80&w=600&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=600&auto=format&fit=crop",
+  "/banners/1.png",
+  "/banners/2.png",
+  "/banners/3.png",
+  "/banners/4.png",
+  "/banners/5.png",
+  "/banners/6.png",
+  "/banners/7.png",
+  "/banners/8.png",
+  "/banners/9.png",
+  "/banners/hero-banner.png",
 ];
 
 export default function CreatePlaylistPage() {
