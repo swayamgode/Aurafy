@@ -156,13 +156,26 @@ export default function HomePage() {
         ) : (
           <section aria-label="Get Started">
             <Link href="/search">
-              <div className="relative w-full h-48 sm:h-56 rounded-3xl overflow-hidden bg-gradient-to-br from-[#111111] to-[#0c6b55] shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform flex flex-col items-center justify-center text-center p-6">
-                <Sparkles className="w-10 h-10 text-white/60 mb-3" />
-                <h2 className="text-xl font-extrabold text-white">Start Your Journey</h2>
-                <p className="text-xs text-white/70 mt-1">Search for songs and download them for offline listening</p>
-                <div className="mt-4 px-5 py-2.5 rounded-full bg-white text-black text-xs font-bold flex items-center space-x-2 shadow-lg">
-                  <Play className="w-4 h-4 fill-black ml-0.5" />
-                  <span>FIND SONGS</span>
+              <div className="relative w-full h-48 sm:h-56 rounded-3xl overflow-hidden shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform">
+                <Image
+                  src="/banners/Relaxed Music Listener with Headphones.png"
+                  alt="Start your music journey"
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 800px"
+                  className="object-cover object-center group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-6 flex flex-col justify-end">
+                  <div className="flex items-center space-x-2 text-[#0c6b55] mb-1">
+                    <Sparkles className="w-4 h-4" />
+                    <span className="text-[11px] font-extrabold tracking-widest uppercase">Discover</span>
+                  </div>
+                  <h2 className="text-xl font-extrabold text-white">Start Your Journey</h2>
+                  <p className="text-xs text-white/70 mt-0.5">Search for songs and download them offline</p>
+                  <div className="mt-3 px-5 py-2.5 rounded-full bg-[#0c6b55] text-white text-xs font-bold flex items-center space-x-2 shadow-lg self-start">
+                    <Play className="w-4 h-4 fill-white ml-0.5" />
+                    <span>FIND SONGS</span>
+                  </div>
                 </div>
               </div>
             </Link>

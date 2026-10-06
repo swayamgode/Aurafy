@@ -28,7 +28,7 @@ export default function PlaylistCard({
     >
       <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-gray-100 mb-3 shadow-2xs">
         <Image
-          src={playlist.coverUrl || "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?q=80&w=400&auto=format&fit=crop"}
+          src={playlist.coverUrl || "/banners/1.png"}
           alt={playlist.title}
           fill
           sizes="(max-width: 640px) 160px, 200px"
