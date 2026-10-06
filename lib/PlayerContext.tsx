@@ -32,6 +32,9 @@ interface PlayerContextType {
   isOfflineMode: boolean;
   downloadedIds: Set<string>;
   downloadingIds: Set<string>;
+  isVROpen: boolean;
+  vrEnvironment: "concert" | "lofi" | "lake" | "cyberpunk";
+  isBeatSaberOpen: boolean;
 
   // Actions
   playTrack: (track: Track, newQueue?: Track[]) => void;
@@ -50,6 +53,12 @@ interface PlayerContextType {
   closeNowPlaying: () => void;
   toggleLockScreen: () => void;
   toggleQueueModal: () => void;
+  openVR: (env?: "concert" | "lofi" | "lake" | "cyberpunk") => void;
+  closeVR: () => void;
+  toggleVR: () => void;
+  setVREnvironment: (env: "concert" | "lofi" | "lake" | "cyberpunk") => void;
+  openBeatSaber: () => void;
+  closeBeatSaber: () => void;
   downloadTrack: (track: Track, triggerDeviceSave?: boolean) => Promise<boolean>;
   removeDownload: (youtubeId: string) => Promise<boolean>;
   isDownloaded: (youtubeId: string) => boolean;
@@ -75,6 +84,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
   const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [isVROpen, setIsVROpen] = useState<boolean>(false);
+  const [vrEnvironment, setVREnvironment] = useState<"concert" | "lofi" | "lake" | "cyberpunk">("concert");
+  const [isBeatSaberOpen, setIsBeatSaberOpen] = useState<boolean>(false);
 
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const ytPlayerRef = useRef<any>(null); // YouTube IFrame player instance
@@ -258,6 +270,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {}
 
+    // Auto-adapt VR environment based on song genre/vibe
+    const textVibe = `${track.title} ${track.artist}`.toLowerCase();
+    if (
+      textVibe.includes("lofi") ||
+      textVibe.includes("chill") ||
+      textVibe.includes("relax") ||
+      textVibe.includes("sleep") ||
+      textVibe.includes("rain") ||
+      textVibe.includes("ambient") ||
+      textVibe.includes("coffee")
+    ) {
+      setVREnvironment("lofi");
+    } else if (
+      textVibe.includes("weeknd") ||
+      textVibe.includes("weekend") ||
+      textVibe.includes("concert") ||
+      textVibe.includes("live") ||
+      textVibe.includes("tour") ||
+      textVibe.includes("arena") ||
+      textVibe.includes("edm") ||
+      textVibe.includes("rock")
+    ) {
+      setVREnvironment("concert");
+    }
+
     // Resume audio engine
     try {
       window._aurafyResume?.();
@@ -369,6 +406,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const closeNowPlaying = () => setIsNowPlayingOpen(false);
   const toggleLockScreen = () => setIsLockScreenOpen((prev) => !prev);
   const toggleQueueModal = () => setIsQueueOpen((prev) => !prev);
+
+  const openVR = (env?: "concert" | "lofi" | "lake" | "cyberpunk") => {
+    if (env) setVREnvironment(env);
+    setIsVROpen(true);
+  };
+  const closeVR = () => setIsVROpen(false);
+  const toggleVR = () => setIsVROpen((prev) => !prev);
 
   // Download song to phone & offline storage (IndexedDB)
   const downloadTrack = async (track: Track, triggerDeviceSave: boolean = true): Promise<boolean> => {
@@ -491,6 +535,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         closeNowPlaying,
         toggleLockScreen,
         toggleQueueModal,
+        isVROpen,
+        vrEnvironment,
+        openVR,
+        closeVR,
+        toggleVR,
+        setVREnvironment,
+        isBeatSaberOpen,
+        openBeatSaber: () => setIsBeatSaberOpen(true),
+        closeBeatSaber: () => setIsBeatSaberOpen(false),
         downloadTrack,
         removeDownload,
         isDownloaded,

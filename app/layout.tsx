@@ -12,6 +12,8 @@ import YouTubeAudioPlayer from "@/components/YouTubeAudioPlayer";
 import { ToastProvider } from "@/lib/ToastContext";
 import DownloadBanner from "@/components/DownloadBanner";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
+import VRConcertModal from "@/components/vr/VRConcertModal";
+import BeatSaberController from "@/components/beatsaber/BeatSaberController";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -86,6 +88,8 @@ export default function RootLayout({
                   <BottomNavigation />
                   <NowPlayingModal />
                   <LockScreenPlayer />
+                  <VRConcertModal />
+                  <BeatSaberController />
                   <YouTubeAudioPlayer />
                 </div>
               </PlayerProvider>
