@@ -1,5 +1,5 @@
 // Service Worker for Aurafy Mobile PWA — Background Audio Edition
-const CACHE_NAME = "aurafy-pwa-v2";
+const CACHE_NAME = "aurafy-pwa-v3";
 const ASSETS_TO_CACHE = [
   "/",
   "/search",

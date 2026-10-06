@@ -71,10 +71,8 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
   const [highScore, setHighScore] = useState(0);
   const [isNewHighScore, setIsNewHighScore] = useState(false);
 
-  // Crosshair states
+  // Crosshair state
   const [isLockedOn, setIsLockedOn] = useState(false);
-  const [misfireFlash, setMisfireFlash] = useState(false);
-  const misfireTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Visual screen shimmers
   const [hitFlash, setHitFlash] = useState(false);
@@ -211,12 +209,6 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     setIsLockedOn(locked);
   }, []);
 
-  const handleMisfire = useCallback(() => {
-    setMisfireFlash(true);
-    if (misfireTimer.current) clearTimeout(misfireTimer.current);
-    misfireTimer.current = setTimeout(() => setMisfireFlash(false), 240);
-  }, []);
-
   const handleScoreUpdate = useCallback((update: ScoreUpdate) => {
     setScore(update);
   }, []);
@@ -273,7 +265,6 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
               onBlockHit={handleBlockHit}
               onMiss={handleMiss}
               onTargetLock={handleTargetLock}
-              onMisfire={handleMisfire}
               recenterTrigger={recenterCount}
               isGyroEnabled={isGyroEnabled}
             />
@@ -287,8 +278,6 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
                 className={`rounded-full border flex items-center justify-center transition-all duration-120 ${
                   isLockedOn
                     ? "w-8 h-8 border-emerald-400 bg-emerald-400/20 shadow-[0_0_14px_rgba(52,211,153,0.9)] scale-110"
-                    : misfireFlash
-                    ? "w-7 h-7 border-red-500 bg-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.8)] scale-90"
                     : "w-6 h-6 border-cyan-400/60 bg-cyan-950/20 shadow-[0_0_6px_rgba(0,240,255,0.35)]"
                 }`}
               >
@@ -297,8 +286,6 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
                   className={`rounded-full transition-all duration-100 ${
                     isLockedOn
                       ? "w-2 h-2 bg-emerald-300 shadow-[0_0_8px_#34d399]"
-                      : misfireFlash
-                      ? "w-2 h-2 bg-red-400"
                       : "w-1.5 h-1.5 bg-cyan-300 shadow-sm shadow-cyan-400"
                   }`}
                 />
