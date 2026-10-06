@@ -22,7 +22,10 @@ interface BeatSaberGameProps {
   onMiss: () => void;
   bpm: number;
   recenterTrigger?: number;
+  isGyroEnabled?: boolean;
   onGyroActive?: (active: boolean) => void;
+  slashLeftTrigger?: number;
+  slashRightTrigger?: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -66,7 +69,10 @@ export default function BeatSaberGame({
   onMiss,
   bpm,
   recenterTrigger = 0,
+  isGyroEnabled = true,
   onGyroActive,
+  slashLeftTrigger = 0,
+  slashRightTrigger = 0,
 }: BeatSaberGameProps) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const rendererRef   = useRef<THREE.WebGLRenderer | null>(null);
@@ -80,7 +86,7 @@ export default function BeatSaberGame({
   const refQuat       = useRef(new THREE.Quaternion());
   const needsRecenter = useRef(true);
 
-  // Keyboard slash triggers
+  // Keyboard / Tap slash triggers
   const keySlashLeft  = useRef(0);
   const keySlashRight = useRef(0);
 
@@ -111,6 +117,19 @@ export default function BeatSaberGame({
   useEffect(() => {
     needsRecenter.current = true;
   }, [recenterTrigger]);
+
+  // Trigger slash on external button tap
+  useEffect(() => {
+    if (slashLeftTrigger > 0) {
+      keySlashLeft.current = performance.now();
+    }
+  }, [slashLeftTrigger]);
+
+  useEffect(() => {
+    if (slashRightTrigger > 0) {
+      keySlashRight.current = performance.now();
+    }
+  }, [slashRightTrigger]);
 
   const getDiffCfg = useCallback(() => {
     switch (difficulty) {
@@ -227,6 +246,11 @@ export default function BeatSaberGame({
 
   // ── Check hits ────────────────────────────────────────────────────────────
   const checkHits = (scene: THREE.Scene) => {
+    const isLeftSlashing = performance.now() - keySlashLeft.current < 250;
+    const isRightSlashing = performance.now() - keySlashRight.current < 250;
+    const hitRadiusL = isLeftSlashing ? 1.4 : 1.0;
+    const hitRadiusR = isRightSlashing ? 1.4 : 1.0;
+
     blocksRef.current.forEach((b) => {
       if (b.hit || b.missed) return;
       const bp = b.mesh.position;
@@ -235,32 +259,30 @@ export default function BeatSaberGame({
       const dR = rightPos.current.distanceTo(bp);
 
       if (!b.isBomb) {
-        if (dL < 0.6 && b.isLeft) {
+        if (dL < hitRadiusL && b.isLeft) {
           b.hit = true;
           scene.remove(b.mesh); scene.remove(b.glow);
           explode(scene, bp.clone(), true);
-          onBlockHit(true, 1 - Math.min(1, dL / 0.6));
-          addScore(1 - dL / 0.6);
+          try { navigator.vibrate?.(25); } catch (_) {}
+          onBlockHit(true, 1 - Math.min(1, dL / hitRadiusL));
+          addScore(1 - dL / hitRadiusL);
           return;
         }
-        if (dR < 0.6 && !b.isLeft) {
+        if (dR < hitRadiusR && !b.isLeft) {
           b.hit = true;
           scene.remove(b.mesh); scene.remove(b.glow);
           explode(scene, bp.clone(), false);
-          onBlockHit(false, 1 - Math.min(1, dR / 0.6));
-          addScore(1 - dR / 0.6);
+          try { navigator.vibrate?.(25); } catch (_) {}
+          onBlockHit(false, 1 - Math.min(1, dR / hitRadiusR));
+          addScore(1 - dR / hitRadiusR);
           return;
         }
-        // Wrong-saber miss
-        if ((dL < 0.6 && !b.isLeft) || (dR < 0.6 && b.isLeft)) {
-          b.missed = true;
-          scene.remove(b.mesh); scene.remove(b.glow);
-          doMiss();
-        }
       } else {
-        if (dL < 0.6 || dR < 0.6) {
+        // Bomb only explodes if directly touching
+        if (dL < 0.5 || dR < 0.5) {
           b.missed = true;
           scene.remove(b.mesh); scene.remove(b.glow);
+          try { navigator.vibrate?.([60, 40, 60]); } catch (_) {}
           doMiss();
         }
       }
@@ -508,7 +530,7 @@ export default function BeatSaberGame({
       const elapsed = now / 1000;
 
       // ── Camera: VR Gyro tilt / orientation look around ───────────────
-      if (gyroActiveRef.current && gyroRef.current) {
+      if (isGyroEnabled && gyroActiveRef.current && gyroRef.current) {
         const { alpha, beta, gamma } = gyroRef.current;
         const screenAngle = (typeof window !== "undefined" && ((window.screen?.orientation?.angle) ?? (window.orientation as number) ?? 0)) || 0;
 
@@ -530,11 +552,11 @@ export default function BeatSaberGame({
         }
 
         const targetQ = refQuat.current.clone().multiply(deviceQ);
-        camera.quaternion.slerp(targetQ, 0.16);
+        // Smoother, gentle damping so touch taps don't shake the camera
+        camera.quaternion.slerp(targetQ, 0.08);
       } else {
-        // No gyro: camera looks straight forward with slight idle bob
-        const bob = Math.sin(elapsed * 1.2) * 0.005;
-        camera.rotation.set(bob, 0, 0, "YXZ");
+        // Steady fixed forward camera for easy, locked-in arcade rhythm play
+        camera.rotation.set(0, 0, 0, "YXZ");
       }
 
       // ── Saber positions from touch ────────────────────────────────────
@@ -581,23 +603,57 @@ export default function BeatSaberGame({
         rightPos.current.y = THREE.MathUtils.lerp(rightPos.current.y, 1.0, 0.08);
       }
 
-      // ── Slash motion animation (Keys / Quick Swipes / Clicks) ───────────
+      // ── Slash motion animation & Auto-Snap Lane Assist ──────────────────
       const leftSlashAge = now - keySlashLeft.current;
       let leftSlashZOffset = 0;
       let leftSlashTilt = 0;
-      if (leftSlashAge < 200) {
-        const p = leftSlashAge / 200;
-        leftSlashZOffset = -Math.sin(p * Math.PI) * 0.6;
-        leftSlashTilt = Math.sin(p * Math.PI) * 0.9;
+      if (leftSlashAge < 220) {
+        const p = leftSlashAge / 220;
+        leftSlashZOffset = -Math.sin(p * Math.PI) * 0.7;
+        leftSlashTilt = Math.sin(p * Math.PI) * 1.0;
+
+        // Auto-snap assist: find closest incoming red block
+        let targetRed: Block | null = null;
+        let bestRedDist = 999;
+        blocksRef.current.forEach((b) => {
+          if (!b.hit && !b.missed && b.isLeft && !b.isBomb && b.mesh.position.z > -4.5 && b.mesh.position.z < 2.5) {
+            const dz = Math.abs(b.mesh.position.z - 0.2);
+            if (dz < bestRedDist) {
+              bestRedDist = dz;
+              targetRed = b;
+            }
+          }
+        });
+        if (targetRed) {
+          leftPos.current.x = THREE.MathUtils.lerp(leftPos.current.x, (targetRed as Block).mesh.position.x, 0.75);
+          leftPos.current.y = THREE.MathUtils.lerp(leftPos.current.y, (targetRed as Block).mesh.position.y, 0.75);
+        }
       }
 
       const rightSlashAge = now - keySlashRight.current;
       let rightSlashZOffset = 0;
       let rightSlashTilt = 0;
-      if (rightSlashAge < 200) {
-        const p = rightSlashAge / 200;
-        rightSlashZOffset = -Math.sin(p * Math.PI) * 0.6;
-        rightSlashTilt = Math.sin(p * Math.PI) * 0.9;
+      if (rightSlashAge < 220) {
+        const p = rightSlashAge / 220;
+        rightSlashZOffset = -Math.sin(p * Math.PI) * 0.7;
+        rightSlashTilt = Math.sin(p * Math.PI) * 1.0;
+
+        // Auto-snap assist: find closest incoming blue block
+        let targetBlue: Block | null = null;
+        let bestBlueDist = 999;
+        blocksRef.current.forEach((b) => {
+          if (!b.hit && !b.missed && !b.isLeft && !b.isBomb && b.mesh.position.z > -4.5 && b.mesh.position.z < 2.5) {
+            const dz = Math.abs(b.mesh.position.z - 0.2);
+            if (dz < bestBlueDist) {
+              bestBlueDist = dz;
+              targetBlue = b;
+            }
+          }
+        });
+        if (targetBlue) {
+          rightPos.current.x = THREE.MathUtils.lerp(rightPos.current.x, (targetBlue as Block).mesh.position.x, 0.75);
+          rightPos.current.y = THREE.MathUtils.lerp(rightPos.current.y, (targetBlue as Block).mesh.position.y, 0.75);
+        }
       }
 
       // Saber swing rotation based on velocity + slash pulse

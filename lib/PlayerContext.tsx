@@ -229,13 +229,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     if (isPlaying) {
       progressTimerRef.current = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= duration) {
-            nextTrack();
-            return 0;
-          }
-          return prev + 1;
-        });
+        const realTime = window._aurafyGetTime?.();
+        if (typeof realTime === "number" && realTime > 0) {
+          setProgress(Math.floor(realTime));
+        } else {
+          setProgress((prev) => {
+            if (duration > 10 && prev >= duration) {
+              nextTrack();
+              return 0;
+            }
+            return prev + 1;
+          });
+        }
       }, 1000);
     } else {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
@@ -244,7 +249,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
-  }, [isPlaying, duration]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isPlaying, duration, isBeatSaberOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const playTrack = async (track: Track, newQueue?: Track[]) => {
     // Immediately set track and start playback
@@ -320,7 +325,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (isShuffle) {
       nextIndex = Math.floor(Math.random() * queue.length);
     } else if (nextIndex >= queue.length) {
-      if (repeatMode === "all") {
+      if (repeatMode === "all" || isBeatSaberOpen || queue.length <= 1) {
         nextIndex = 0;
       } else {
         setIsPlaying(false);

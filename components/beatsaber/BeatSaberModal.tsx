@@ -81,6 +81,9 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
   const [bpm] = useState(128); // Default; beat detector updates this
   const [recenterCount, setRecenterCount] = useState(0);
   const [isGyroActive, setIsGyroActive] = useState(false);
+  const [isGyroEnabled, setIsGyroEnabled] = useState(false); // Default steady camera for effortless phone play
+  const [slashLeftCount, setSlashLeftCount] = useState(0);
+  const [slashRightCount, setSlashRightCount] = useState(0);
   const [showControlsModal, setShowControlsModal] = useState(false);
 
   const hitTimerLeft = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -131,6 +134,9 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     setGameStarted(true);
     setRecenterCount((c) => c + 1);
     if (!isPlaying) togglePlay();
+    try {
+      window._aurafyResume?.();
+    } catch (_) {}
     showToast(`Beat Saber started — ${DIFFICULTY_LABELS[difficulty].label} mode!`, "success");
   };
 
@@ -140,7 +146,7 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     showToast("VR look recentered!", "info");
   };
 
-  // ── Callbacks from game engine ────────────────────────────────────────────
+  // ── Callbacks from game engine ────────────────────────────────────
   const handleScoreUpdate = useCallback((update: ScoreUpdate) => {
     setScore(update);
   }, []);
@@ -193,18 +199,37 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
               onMiss={handleMiss}
               bpm={bpm}
               recenterTrigger={recenterCount}
+              isGyroEnabled={isGyroEnabled}
               onGyroActive={setIsGyroActive}
+              slashLeftTrigger={slashLeftCount}
+              slashRightTrigger={slashRightCount}
             />
           </div>
 
-          {/* Mobile subtle thumb guides (fades out after game starts) */}
-          <div className="absolute inset-x-0 bottom-24 z-10 flex justify-between px-6 pointer-events-none opacity-50">
-            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-red-950/70 border border-red-500/30 text-red-300 text-[10px] font-bold">
-              <span>🔴 Left Saber (Swipe/Tap)</span>
-            </div>
-            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-cyan-950/70 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold">
-              <span>🔵 Right Saber (Swipe/Tap)</span>
-            </div>
+          {/* Arcade Tap Buttons on Phone — 100x simpler & more fun */}
+          <div className="absolute inset-x-0 bottom-24 z-20 flex justify-between gap-3 px-4 pointer-events-auto">
+            <button
+              onTouchStart={(e) => {
+                e.preventDefault();
+                setSlashLeftCount((c) => c + 1);
+              }}
+              onMouseDown={() => setSlashLeftCount((c) => c + 1)}
+              className="flex-1 py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-red-600/40 to-red-500/20 active:from-red-600/70 border-2 border-red-500/40 active:border-red-400 backdrop-blur-md transition-all active:scale-95 shadow-lg shadow-red-950/50 select-none cursor-pointer flex items-center justify-center space-x-2"
+            >
+              <span className="text-xl">🔴</span>
+              <span className="text-white font-black text-xs sm:text-sm tracking-wider uppercase">Tap Red</span>
+            </button>
+            <button
+              onTouchStart={(e) => {
+                e.preventDefault();
+                setSlashRightCount((c) => c + 1);
+              }}
+              onMouseDown={() => setSlashRightCount((c) => c + 1)}
+              className="flex-1 py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-blue-600/40 active:from-blue-600/70 border-2 border-cyan-400/40 active:border-cyan-300 backdrop-blur-md transition-all active:scale-95 shadow-lg shadow-cyan-950/50 select-none cursor-pointer flex items-center justify-center space-x-2"
+            >
+              <span className="text-white font-black text-xs sm:text-sm tracking-wider uppercase">Tap Blue</span>
+              <span className="text-xl">🔵</span>
+            </button>
           </div>
         </>
       )}
@@ -226,25 +251,44 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
               <span className="text-white font-black text-sm tracking-widest uppercase">Beat Saber</span>
             </div>
             {currentTrack && (
-              <p className="text-white/50 text-[10px] truncate max-w-[140px] sm:max-w-[200px]">
+              <p className="text-white/50 text-[10px] truncate max-w-[120px] sm:max-w-[200px]">
                 {currentTrack.title} · {currentTrack.artist}
               </p>
             )}
           </div>
         </div>
 
-        {/* Right: Controls + Recenter + Difficulty badge */}
+        {/* Right: Controls + Camera toggle + Recenter + Difficulty badge */}
         <div className="flex items-center space-x-2">
           {gameStarted && (
             <>
-              {/* Recenter VR button */}
+              {/* Camera mode toggle (Steady vs VR Gyro) */}
               <button
-                onClick={handleRecenter}
-                title="Recenter VR Camera"
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 cursor-pointer"
+                onClick={() => {
+                  setIsGyroEnabled((prev) => !prev);
+                  showToast(!isGyroEnabled ? "VR Gyro look ON" : "Steady camera locked", "info");
+                }}
+                title="Toggle VR Gyro vs Steady Camera"
+                className={`px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+                  isGyroEnabled
+                    ? "bg-indigo-500/30 border-indigo-400 text-indigo-300"
+                    : "bg-white/10 border-white/15 text-white/60 hover:text-white"
+                }`}
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <Smartphone className="w-3 h-3" />
+                <span>{isGyroEnabled ? "VR Gyro" : "Steady"}</span>
               </button>
+
+              {/* Recenter button if gyro is on */}
+              {isGyroEnabled && (
+                <button
+                  onClick={handleRecenter}
+                  title="Recenter VR Camera"
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
             </>
           )}
 

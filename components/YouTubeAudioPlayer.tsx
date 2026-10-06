@@ -27,6 +27,7 @@ export default function YouTubeAudioPlayer() {
     isMuted,
     nextTrack,
     setYouTubePlayer,
+    isBeatSaberOpen,
   } = usePlayer();
 
   // Primary HTML5 audio player (streams from /api/stream or local offline blob)
@@ -380,7 +381,17 @@ export default function YouTubeAudioPlayer() {
         ref={audioRef}
         playsInline
         preload="auto"
-        onEnded={() => nextTrack()}
+        onEnded={() => {
+          if (isBeatSaberOpen) {
+            // Replay immediately during Beat Saber
+            if (audioRef.current) {
+              audioRef.current.currentTime = 0;
+              audioRef.current.play().catch(() => {});
+            }
+          } else {
+            nextTrack();
+          }
+        }}
         onError={() => {
           console.warn("[Aurafy] Audio error on stream, falling back to YouTube iframe");
           isFallbackToIframe.current = true;
