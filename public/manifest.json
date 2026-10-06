@@ -1,6 +1,6 @@
 {
-  "name": "Aurafy — Modern Music Player",
-  "short_name": "Aurafy",
+  "name": "Hue — Modern Music Player",
+  "short_name": "Hue",
   "description": "Premium mobile-first music application for discovering, streaming, and downloading music offline.",
   "start_url": "/",
   "display": "standalone",

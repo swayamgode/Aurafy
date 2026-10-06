@@ -91,7 +91,7 @@ export default function PWAInstallBanner() {
           </div>
           <div className="min-w-0">
             <div className="flex items-center space-x-1">
-              <h4 className="text-xs font-extrabold text-white truncate">Install Aurafy App</h4>
+              <h4 className="text-xs font-extrabold text-white truncate">Install Hue App</h4>
               <Sparkles className="w-3.5 h-3.5 text-[#0c6b55] shrink-0" />
             </div>
             <p className="text-[11px] text-white/70 truncate mt-0.5">
@@ -123,7 +123,7 @@ export default function PWAInstallBanner() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
           <div className="bg-white text-black w-full max-w-md rounded-3xl p-6 space-y-4 shadow-2xl border border-gray-200">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-base font-extrabold text-black">Install Aurafy on iPhone</h3>
+              <h3 className="text-base font-extrabold text-black">Install Hue on iPhone</h3>
               <button
                 onClick={() => setShowIosGuide(false)}
                 aria-label="Close guide"
@@ -134,7 +134,7 @@ export default function PWAInstallBanner() {
             </div>
 
             <p className="text-xs text-[#5F6368] font-medium leading-relaxed">
-              To install Aurafy on your iOS home screen for native full-screen music playback:
+              To install Hue on your iOS home screen for native full-screen music playback:
             </p>
 
             <div className="space-y-3 pt-1">
