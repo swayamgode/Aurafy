@@ -25,7 +25,7 @@ export default function DownloadBanner() {
         className="mt-2 mx-3 max-w-md w-full flex items-center space-x-2.5 bg-[#111111] text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-white/10"
         style={{ backdropFilter: "blur(16px)" }}
       >
-        <Loader2 className="w-4 h-4 text-[#D7192F] animate-spin shrink-0" />
+        <Loader2 className="w-4 h-4 text-[#0c6b55] animate-spin shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold truncate">
             Downloading {count} song{count > 1 ? "s" : ""}…

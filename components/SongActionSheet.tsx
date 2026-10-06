@@ -310,7 +310,7 @@ export default function SongActionSheet({
             <ActionRow
               icon={
                 isCurrentlyDownloading ? (
-                  <div className="w-4 h-4 border-2 border-[#D7192F] border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-[#0c6b55] border-t-transparent rounded-full animate-spin" />
                 ) : isCurrentDownloaded ? (
                   <Trash2 className="w-5 h-5 text-red-600" />
                 ) : (
@@ -333,11 +333,11 @@ export default function SongActionSheet({
               onClick={handleAddToQueue}
             />
             <ActionRow
-              icon={<PlusCircle className="w-5 h-5 text-[#D7192F]" />}
+              icon={<PlusCircle className="w-5 h-5 text-[#0c6b55]" />}
               label="Add to Playlist"
               onClick={() => setView("playlists")}
               chevron
-              labelColor="text-[#D7192F]"
+              labelColor="text-[#0c6b55]"
             />
             <ActionRow
               icon={<Clock className="w-5 h-5 text-[#5F6368]" />}
@@ -345,7 +345,7 @@ export default function SongActionSheet({
               onClick={handleListenLater}
             />
             <ActionRow
-              icon={<Heart className="w-5 h-5 text-[#D7192F]" />}
+              icon={<Heart className="w-5 h-5 text-[#0c6b55]" />}
               label="Add to Favourites"
               onClick={() => {
                 showToast(`Saved "${track.title}" to Favourites`, "favorite");
@@ -381,7 +381,7 @@ export default function SongActionSheet({
                     {pl.coverUrl ? (
                       <Image src={pl.coverUrl} alt={pl.title} fill sizes="44px" className="object-cover" />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-[#D7192F] to-rose-400 flex items-center justify-center">
+                      <div className="w-full h-full bg-gradient-to-br from-[#0c6b55] to-[#1a9b7a] flex items-center justify-center">
                         <ListPlus className="w-5 h-5 text-white" />
                       </div>
                     )}
@@ -394,11 +394,11 @@ export default function SongActionSheet({
                   </div>
                   <div className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center">
                     {isAdded ? (
-                      <Check className="w-5 h-5 text-[#D7192F]" />
+                      <Check className="w-5 h-5 text-[#0c6b55]" />
                     ) : isAdding ? (
-                      <div className="w-4 h-4 border-2 border-[#D7192F] border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-[#0c6b55] border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <PlusCircle className="w-5 h-5 text-[#D7192F]" />
+                      <PlusCircle className="w-5 h-5 text-[#0c6b55]" />
                     )}
                   </div>
                 </button>

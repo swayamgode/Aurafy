@@ -223,7 +223,7 @@ export default function VRConcertModal() {
           </button>
 
           <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-xs font-bold text-white shadow-lg">
-            <span className="w-2 h-2 rounded-full bg-[#D7192F] animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-[#0c6b55] animate-pulse" />
             <span>3D VIRTUAL REALITY</span>
           </div>
         </div>
@@ -234,7 +234,7 @@ export default function VRConcertModal() {
             onClick={() => handleEnvChange("concert")}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
               vrEnvironment === "concert"
-                ? "bg-[#D7192F] text-white shadow-md shadow-red-900/50"
+                ? "bg-[#0c6b55] text-white shadow-md shadow-green-900/50"
                 : "text-zinc-400 hover:text-white"
             }`}
           >
@@ -289,7 +289,7 @@ export default function VRConcertModal() {
             title="Split-Screen VR Goggles (Google Cardboard / Meta Quest)"
             className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center border transition-all active:scale-95 shadow-lg cursor-pointer ${
               isStereoVR
-                ? "bg-[#D7192F] border-red-400 text-white shadow-red-900/50"
+                ? "bg-[#0c6b55] border-red-400 text-white shadow-green-900/50"
                 : "bg-black/60 hover:bg-black/90 border-white/15 text-zinc-300"
             }`}
           >
@@ -465,7 +465,7 @@ export default function VRConcertModal() {
               className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
             >
               {isMuted || volume === 0 ? (
-                <VolumeX className="w-4 h-4 text-[#D7192F]" />
+                <VolumeX className="w-4 h-4 text-[#0c6b55]" />
               ) : (
                 <Volume2 className="w-4 h-4" />
               )}
@@ -481,7 +481,7 @@ export default function VRConcertModal() {
                 max={duration || 100}
                 value={progress}
                 onChange={(e) => seekTo(Number(e.target.value))}
-                className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#D7192F] focus:outline-hidden"
+                className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#0c6b55] focus:outline-hidden"
               />
             </div>
             <div className="flex justify-between text-[10px] text-zinc-400 font-medium mt-1">
@@ -503,7 +503,7 @@ export default function VRConcertModal() {
             <button
               onClick={togglePlay}
               aria-label={isPlaying ? "Pause" : "Play"}
-              className="w-12 h-12 rounded-full bg-[#D7192F] hover:bg-[#b01324] text-white flex items-center justify-center shadow-lg shadow-red-900/40 active:scale-95 transition-all cursor-pointer"
+              className="w-12 h-12 rounded-full bg-[#0c6b55] hover:bg-[#084d3e] text-white flex items-center justify-center shadow-lg shadow-green-900/40 active:scale-95 transition-all cursor-pointer"
             >
               {isPlaying ? (
                 <Pause className="w-6 h-6 fill-current" />

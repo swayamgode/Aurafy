@@ -40,7 +40,7 @@ export default function LoginPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-[#D7192F] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-3 border-[#0c6b55] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -50,7 +50,7 @@ export default function LoginPage() {
       {/* Brand Header */}
       <div className="pt-8 space-y-3">
         <div className="inline-flex items-center space-x-2 bg-black text-white px-3.5 py-1.5 rounded-full shadow-sm">
-          <Sparkles className="w-3.5 h-3.5 text-[#D7192F]" />
+          <Sparkles className="w-3.5 h-3.5 text-[#0c6b55]" />
           <span className="text-[11px] font-extrabold uppercase tracking-widest">
             WELCOME TO AURAFY
           </span>
@@ -58,7 +58,7 @@ export default function LoginPage() {
 
         <h1 className="text-4xl font-extrabold tracking-tight text-black leading-none pt-2">
           Your Sonic <br />
-          <span className="text-[#D7192F]">Universe.</span>
+          <span className="text-[#0c6b55]">Universe.</span>
         </h1>
 
         <p className="text-sm text-[#5F6368] font-normal leading-relaxed">
@@ -82,7 +82,7 @@ export default function LoginPage() {
                   onClick={() => setSelectedAvatar(avatar)}
                   className={`relative w-12 h-12 rounded-full overflow-hidden transition-all duration-200 cursor-pointer ${
                     isSelected
-                      ? "ring-3 ring-[#D7192F] scale-110 shadow-md"
+                      ? "ring-3 ring-[#0c6b55] scale-110 shadow-md"
                       : "opacity-60 hover:opacity-100 hover:scale-105"
                   }`}
                 >
@@ -144,7 +144,7 @@ export default function LoginPage() {
           disabled={isSubmitting}
           className="w-full py-3.5 px-4 bg-[#F1F2F3] text-black text-xs font-bold rounded-2xl hover:bg-[#E3E4E6] active:scale-98 transition-all flex items-center justify-center space-x-2 cursor-pointer"
         >
-          <Headphones className="w-4 h-4 text-[#D7192F]" />
+          <Headphones className="w-4 h-4 text-[#0c6b55]" />
           <span>1-Tap Quick Start (Guest)</span>
         </button>
       </div>
@@ -152,19 +152,19 @@ export default function LoginPage() {
       {/* Feature Badges Footer */}
       <div className="grid grid-cols-3 gap-2 text-center pt-2 pb-4">
         <div className="p-2.5 rounded-2xl bg-white border border-[#E3E4E6]/80 flex flex-col items-center">
-          <Music className="w-4 h-4 text-[#D7192F] mb-1" />
+          <Music className="w-4 h-4 text-[#0c6b55] mb-1" />
           <span className="text-[10px] font-bold text-black">Unlimited</span>
           <span className="text-[9px] text-[#8A8D91]">Streaming</span>
         </div>
 
         <div className="p-2.5 rounded-2xl bg-white border border-[#E3E4E6]/80 flex flex-col items-center">
-          <Radio className="w-4 h-4 text-[#D7192F] mb-1" />
+          <Radio className="w-4 h-4 text-[#0c6b55] mb-1" />
           <span className="text-[10px] font-bold text-black">Offline Mode</span>
           <span className="text-[9px] text-[#8A8D91]">Download MP3</span>
         </div>
 
         <div className="p-2.5 rounded-2xl bg-white border border-[#E3E4E6]/80 flex flex-col items-center">
-          <Sparkles className="w-4 h-4 text-[#D7192F] mb-1" />
+          <Sparkles className="w-4 h-4 text-[#0c6b55] mb-1" />
           <span className="text-[10px] font-bold text-black">Hi-Res Audio</span>
           <span className="text-[9px] text-[#8A8D91]">24-Bit / 96kHz</span>
         </div>

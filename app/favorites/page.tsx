@@ -124,7 +124,7 @@ export default function FavoritesPage() {
 
       <div className="px-4 sm:px-6 space-y-6 mt-2">
         {/* Banner Header */}
-        <div className="bg-gradient-to-r from-red-600 to-[#D7192F] rounded-3xl p-6 text-white shadow-md flex items-center justify-between">
+        <div className="bg-gradient-to-r from-red-600 to-[#0c6b55] rounded-3xl p-6 text-white shadow-md flex items-center justify-between">
           <div>
             <div className="flex items-center space-x-2 text-white/80 mb-1">
               {activeFilter === "Downloaded" ? (
@@ -162,7 +162,7 @@ export default function FavoritesPage() {
             <Link
               href="/playlist/create"
               aria-label="Create new playlist"
-              className="w-14 h-14 rounded-full bg-white text-[#D7192F] flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-transform cursor-pointer"
+              className="w-14 h-14 rounded-full bg-white text-[#0c6b55] flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-transform cursor-pointer"
             >
               <Plus className="w-6 h-6 stroke-[2.5]" />
             </Link>
@@ -171,9 +171,9 @@ export default function FavoritesPage() {
               <button
                 onClick={() => playTrack(displayedSongs[0], displayedSongs)}
                 aria-label="Play all songs"
-                className="w-14 h-14 rounded-full bg-white text-[#D7192F] flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-transform cursor-pointer"
+                className="w-14 h-14 rounded-full bg-white text-[#0c6b55] flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-transform cursor-pointer"
               >
-                <Play className="w-6 h-6 fill-[#D7192F] ml-0.5" />
+                <Play className="w-6 h-6 fill-[#0c6b55] ml-0.5" />
               </button>
             )
           )}
@@ -211,12 +211,12 @@ export default function FavoritesPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 sm:gap-4">
               <Link
                 href="/playlist/create"
-                className="group flex flex-col items-center justify-center bg-white rounded-2xl p-5 border-2 border-dashed border-[#E3E4E6] hover:border-[#D7192F] transition-all hover:shadow-md active:scale-98 cursor-pointer min-h-[190px] text-center"
+                className="group flex flex-col items-center justify-center bg-white rounded-2xl p-5 border-2 border-dashed border-[#E3E4E6] hover:border-[#0c6b55] transition-all hover:shadow-md active:scale-98 cursor-pointer min-h-[190px] text-center"
               >
-                <div className="w-12 h-12 rounded-full bg-red-50 group-hover:bg-[#D7192F] flex items-center justify-center transition-colors mb-2.5">
-                  <Plus className="w-6 h-6 text-[#D7192F] group-hover:text-white transition-colors" />
+                <div className="w-12 h-12 rounded-full bg-[#e6f4f0] group-hover:bg-[#0c6b55] flex items-center justify-center transition-colors mb-2.5">
+                  <Plus className="w-6 h-6 text-[#0c6b55] group-hover:text-white transition-colors" />
                 </div>
-                <h4 className="text-sm font-bold text-black group-hover:text-[#D7192F] transition-colors">
+                <h4 className="text-sm font-bold text-black group-hover:text-[#0c6b55] transition-colors">
                   Create Playlist
                 </h4>
                 <p className="text-[11px] text-[#8A8D91] mt-1">Tap to create</p>

@@ -300,7 +300,7 @@ export default function VRConcertScene({
     envGroup.add(runway);
 
     // Neon edge strip on runway
-    const stripMat = new THREE.MeshBasicMaterial({ color: 0xd7192f });
+    const stripMat = new THREE.MeshBasicMaterial({ color: 0x0c6b55 });
     const stripL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 10), stripMat);
     stripL.position.set(-2.25, stageHeight + 0.05, -1);
     const stripR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 10), stripMat);
@@ -322,7 +322,7 @@ export default function VRConcertScene({
     envGroup.add(ledScreen);
 
     // LED glow light casting on arena
-    const ledGlow = new THREE.PointLight(0xd7192f, 4.5, 40);
+    const ledGlow = new THREE.PointLight(0x0c6b55, 4.5, 40);
     ledGlow.position.set(0, stageHeight + 5.5, -12);
     envGroup.add(ledGlow);
 
@@ -333,7 +333,7 @@ export default function VRConcertScene({
     envGroup.add(overheadTruss);
 
     // --- REAL-TIME MOVING SPOTLIGHT BEAMS ---
-    const spotColors = [0xd7192f, 0x00f0ff, 0x9d00ff, 0xffaa00, 0xd7192f, 0x00d4ff];
+    const spotColors = [0x0c6b55, 0x00f0ff, 0x9d00ff, 0xffaa00, 0x0c6b55, 0x00d4ff];
     const spotLights: {
       light: THREE.SpotLight;
       target: THREE.Object3D;
@@ -724,7 +724,7 @@ export default function VRConcertScene({
         ctx.drawImage(albumImgRef.current, 60, 86, artSize, artSize);
         ctx.restore();
 
-        ctx.strokeStyle = "#D7192F";
+        ctx.strokeStyle = "#0c6b55";
         ctx.lineWidth = 6;
         ctx.beginPath();
         ctx.roundRect(58, 84, artSize + 4, artSize + 4, 24);
@@ -743,7 +743,7 @@ export default function VRConcertScene({
       const height = isPlaying ? 30 + freq * 240 : 15;
 
       const grad = ctx.createLinearGradient(0, baseY, 0, baseY - height);
-      grad.addColorStop(0, "#D7192F");
+      grad.addColorStop(0, "#0c6b55");
       grad.addColorStop(0.6, "#FF4D6D");
       grad.addColorStop(1, "#00F0FF");
 
@@ -761,7 +761,7 @@ export default function VRConcertScene({
     ctx.font = "500 24px Inter, sans-serif";
     ctx.fillText(artistName, 450, 195);
 
-    ctx.fillStyle = "#D7192F";
+    ctx.fillStyle = "#0c6b55";
     ctx.beginPath();
     ctx.roundRect(450, 70, 100, 32, 16);
     ctx.fill();

@@ -38,7 +38,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             className="w-full bg-[#2D2D2D] text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center space-x-3 backdrop-blur-md animate-in slide-in-from-top duration-200 pointer-events-auto"
           >
             {toast.type === "favorite" && (
-              <Heart className="w-4 h-4 fill-[#D7192F] text-[#D7192F] shrink-0" />
+              <Heart className="w-4 h-4 fill-[#0c6b55] text-[#0c6b55] shrink-0" />
             )}
             {toast.type === "queue" && (
               <Music className="w-4 h-4 text-white shrink-0" />

@@ -281,7 +281,7 @@ export default function PlaylistDetailsPage() {
 
       {isLoading ? (
         <div className="py-24 flex flex-col items-center justify-center space-y-3">
-          <Loader2 className="w-10 h-10 animate-spin text-[#D7192F]" />
+          <Loader2 className="w-10 h-10 animate-spin text-[#0c6b55]" />
           <p className="text-xs font-bold text-[#5F6368]">Loading playlist...</p>
         </div>
       ) : (
@@ -300,7 +300,7 @@ export default function PlaylistDetailsPage() {
             </div>
 
             <div className="min-w-0 flex-1 text-center sm:text-left space-y-2">
-              <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#D7192F]">
+              <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#0c6b55]">
                 PLAYLIST
               </span>
               <h2 className="text-2xl font-black text-black tracking-tight leading-tight">
@@ -321,7 +321,7 @@ export default function PlaylistDetailsPage() {
           <div className="flex items-center justify-between gap-3">
             <button
               onClick={handlePlayAll}
-              className="flex-1 py-3.5 px-6 rounded-2xl bg-[#D7192F] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md active:scale-98 hover:bg-red-700 transition-all cursor-pointer"
+              className="flex-1 py-3.5 px-6 rounded-2xl bg-[#0c6b55] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md active:scale-98 hover:bg-[#084d3e] transition-all cursor-pointer"
             >
               {isPlaylistPlaying ? (
                 <>
@@ -340,7 +340,7 @@ export default function PlaylistDetailsPage() {
               onClick={() => setIsAddModalOpen(true)}
               className="py-3.5 px-5 rounded-2xl bg-white border border-[#E3E4E6] text-black text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:bg-[#F1F2F3] active:scale-98 transition-all cursor-pointer"
             >
-              <Plus className="w-4 h-4 text-[#D7192F]" />
+              <Plus className="w-4 h-4 text-[#0c6b55]" />
               <span>ADD SONGS</span>
             </button>
           </div>
@@ -356,7 +356,7 @@ export default function PlaylistDetailsPage() {
                 </p>
                 <button
                   onClick={() => setIsAddModalOpen(true)}
-                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-black text-white text-xs font-bold hover:bg-[#D7192F] transition-colors cursor-pointer"
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-black text-white text-xs font-bold hover:bg-[#0c6b55] transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Songs</span>

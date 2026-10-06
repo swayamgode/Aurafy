@@ -13,7 +13,7 @@ export default function AudioEqualizer({ isPlaying, barCount = 4 }: AudioEqualiz
       {Array.from({ length: barCount }).map((_, i) => (
         <span
           key={i}
-          className={`w-0.5 bg-[#D7192F] rounded-full transition-all duration-300 ${
+          className={`w-0.5 bg-[#0c6b55] rounded-full transition-all duration-300 ${
             isPlaying ? "animate-pulse" : "h-1 opacity-50"
           }`}
           style={{

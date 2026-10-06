@@ -42,14 +42,14 @@ export default function PlaylistCard({
               onPlay();
             }}
             aria-label={`Play ${playlist.title}`}
-            className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-[#D7192F] text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform opacity-0 group-hover:opacity-100 hover:bg-red-700"
+            className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-[#0c6b55] text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform opacity-0 group-hover:opacity-100 hover:bg-[#084d3e]"
           >
             <Play className="w-4 h-4 fill-white ml-0.5" />
           </button>
         )}
       </div>
 
-      <h4 className="text-xs sm:text-sm font-bold text-black truncate group-hover:text-[#D7192F] transition-colors">
+      <h4 className="text-xs sm:text-sm font-bold text-black truncate group-hover:text-[#0c6b55] transition-colors">
         {playlist.title}
       </h4>
       <div className="flex items-center justify-between text-[11px] text-[#5F6368] mt-0.5">
@@ -69,7 +69,7 @@ export default function PlaylistCard({
             onAdd();
           }}
           aria-label="Add playlist"
-          className="mt-3 w-full py-1.5 rounded-full bg-black text-white text-xs font-semibold hover:bg-[#D7192F] transition-colors flex items-center justify-center space-x-1"
+          className="mt-3 w-full py-1.5 rounded-full bg-black text-white text-xs font-semibold hover:bg-[#0c6b55] transition-colors flex items-center justify-center space-x-1"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>ADD</span>

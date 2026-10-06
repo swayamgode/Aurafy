@@ -165,7 +165,7 @@ export default function AddSongsModal({
                 if (activeTab !== "Search") setActiveTab("Search");
               }}
               placeholder="Search YouTube songs, artists..."
-              className="w-full pl-10 pr-9 py-2.5 bg-[#F8F9FA] border border-[#E3E4E6] rounded-2xl text-xs font-semibold text-black placeholder:text-[#8A8D91] focus:outline-none focus:border-[#D7192F] focus:bg-white transition-all"
+              className="w-full pl-10 pr-9 py-2.5 bg-[#F8F9FA] border border-[#E3E4E6] rounded-2xl text-xs font-semibold text-black placeholder:text-[#8A8D91] focus:outline-none focus:border-[#0c6b55] focus:bg-white transition-all"
             />
             {searchQuery && (
               <button
@@ -199,7 +199,7 @@ export default function AddSongsModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {isSearching ? (
             <div className="py-16 text-center space-y-2">
-              <Loader2 className="w-8 h-8 mx-auto animate-spin text-[#D7192F]" />
+              <Loader2 className="w-8 h-8 mx-auto animate-spin text-[#0c6b55]" />
               <p className="text-xs font-bold text-[#5F6368]">Searching songs...</p>
             </div>
           ) : displayedList.length === 0 ? (
@@ -228,7 +228,7 @@ export default function AddSongsModal({
                   key={`${track.youtubeId}-${idx}`}
                   className={`flex items-center justify-between p-3 rounded-2xl bg-white border transition-all ${
                     selected
-                      ? "border-[#D7192F]/40 shadow-2xs"
+                      ? "border-[#0c6b55]/40 shadow-2xs"
                       : "border-[#E3E4E6] hover:border-gray-300"
                   }`}
                 >
@@ -255,7 +255,7 @@ export default function AddSongsModal({
                     className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center space-x-1 shrink-0 transition-all cursor-pointer ${
                       selected
                         ? "bg-black text-white hover:bg-neutral-800"
-                        : "bg-red-50 text-[#D7192F] hover:bg-[#D7192F] hover:text-white border border-[#D7192F]/30"
+                        : "bg-[#e6f4f0] text-[#0c6b55] hover:bg-[#0c6b55] hover:text-white border border-[#0c6b55]/30"
                     }`}
                   >
                     {selected ? (

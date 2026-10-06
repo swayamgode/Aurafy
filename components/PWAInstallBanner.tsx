@@ -86,13 +86,13 @@ export default function PWAInstallBanner() {
       {/* PWA Floating Bottom Banner */}
       <div className="fixed bottom-20 left-4 right-4 z-40 max-w-md mx-auto bg-[#111111] text-white p-4 rounded-3xl shadow-2xl border border-white/10 flex items-center justify-between animate-in slide-in-from-bottom duration-300">
         <div className="flex items-center space-x-3 min-w-0 pr-2">
-          <div className="w-10 h-10 rounded-2xl bg-[#D7192F] text-white flex items-center justify-center shrink-0 shadow-md">
+          <div className="w-10 h-10 rounded-2xl bg-[#0c6b55] text-white flex items-center justify-center shrink-0 shadow-md">
             <Smartphone className="w-5 h-5" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center space-x-1">
               <h4 className="text-xs font-extrabold text-white truncate">Install Aurafy App</h4>
-              <Sparkles className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              <Sparkles className="w-3.5 h-3.5 text-[#0c6b55] shrink-0" />
             </div>
             <p className="text-[11px] text-white/70 truncate mt-0.5">
               1-tap home screen access & background lock screen music
@@ -103,7 +103,7 @@ export default function PWAInstallBanner() {
         <div className="flex items-center space-x-2 shrink-0">
           <button
             onClick={handleInstallClick}
-            className="px-3.5 py-2 rounded-xl bg-[#D7192F] hover:bg-red-700 text-white font-extrabold text-xs shadow-md active:scale-95 transition-transform flex items-center space-x-1 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-[#0c6b55] hover:bg-[#084d3e] text-white font-extrabold text-xs shadow-md active:scale-95 transition-transform flex items-center space-x-1 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Install</span>
@@ -149,7 +149,7 @@ export default function PWAInstallBanner() {
               </div>
 
               <div className="flex items-center space-x-3 p-3 rounded-2xl bg-[#F8F9FA] border border-[#E3E4E6]">
-                <div className="w-8 h-8 rounded-xl bg-red-50 text-[#D7192F] flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[#e6f4f0] text-[#0c6b55] flex items-center justify-center shrink-0">
                   <PlusSquare className="w-4 h-4" />
                 </div>
                 <div className="text-xs">

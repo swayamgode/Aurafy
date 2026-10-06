@@ -54,8 +54,8 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
           {/* Header */}
           <div className="flex items-center justify-between pb-6 border-b border-[#E3E4E6]">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-full bg-[#D7192F] text-white font-extrabold flex items-center justify-center text-sm shadow-md">
-                H
+              <div className="w-8 h-8 rounded-full overflow-hidden shadow-md flex-shrink-0">
+                <img src="/icons/icon-72x72.png" alt="Aurafy" className="w-full h-full object-cover" />
               </div>
               <span className="text-xl font-extrabold text-black tracking-tight">
                 Hue
@@ -92,7 +92,7 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
               <h4 className="text-xs font-bold text-black truncate">
                 {user?.name || "Music Explorer"}
               </h4>
-              <span className="text-[10px] font-extrabold uppercase text-[#D7192F]">
+              <span className="text-[10px] font-extrabold uppercase text-[#0c6b55]">
                 PRO MEMBER
               </span>
             </div>
@@ -131,10 +131,10 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
             className="w-full py-3 px-4 rounded-2xl bg-linear-to-r from-neutral-900 via-neutral-800 to-neutral-900 text-white text-xs font-bold flex items-center justify-between hover:bg-black transition-colors cursor-pointer border border-white/10 shadow-md"
           >
             <div className="flex items-center space-x-2">
-              <Glasses className="w-4 h-4 text-[#D7192F]" />
+              <Glasses className="w-4 h-4 text-[#0c6b55]" />
               <span>3D Concert & Lofi VR</span>
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#D7192F] text-white font-extrabold uppercase">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0c6b55] text-white font-extrabold uppercase">
               360°
             </span>
           </button>
@@ -147,7 +147,7 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
             className="w-full py-3 px-4 rounded-2xl bg-[#2D2D2D] text-white text-xs font-bold flex items-center justify-between hover:bg-black transition-colors cursor-pointer"
           >
             <div className="flex items-center space-x-2">
-              <Lock className="w-4 h-4 text-[#D7192F]" />
+              <Lock className="w-4 h-4 text-[#0c6b55]" />
               <span>Lock Screen Mode</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 text-[#8A8D91]" />

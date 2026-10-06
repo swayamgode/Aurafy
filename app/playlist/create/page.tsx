@@ -140,7 +140,7 @@ export default function CreatePlaylistPage() {
           disabled={!name.trim() || isSaving}
           className={`px-5 py-2 rounded-full text-xs font-black transition-all cursor-pointer shadow-xs ${
             name.trim()
-              ? "bg-[#D7192F] text-white hover:bg-red-700 active:scale-95"
+              ? "bg-[#0c6b55] text-white hover:bg-[#084d3e] active:scale-95"
               : "bg-[#E3E4E6] text-[#8A8D91] cursor-not-allowed"
           }`}
         >
@@ -183,7 +183,7 @@ export default function CreatePlaylistPage() {
                   onClick={() => setCoverUrl(preset)}
                   className={`relative w-11 h-11 rounded-xl overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
                     coverUrl === preset
-                      ? "border-[#D7192F] scale-110 shadow-md"
+                      ? "border-[#0c6b55] scale-110 shadow-md"
                       : "border-transparent opacity-60 hover:opacity-100"
                   }`}
                 >
@@ -205,7 +205,7 @@ export default function CreatePlaylistPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Late Night Drives, Gym Hype"
-              className="w-full px-3.5 py-3 rounded-xl bg-[#F8F9FA] border border-[#E3E4E6] text-sm font-bold text-black focus:outline-none focus:border-[#D7192F] focus:bg-white transition-all"
+              className="w-full px-3.5 py-3 rounded-xl bg-[#F8F9FA] border border-[#E3E4E6] text-sm font-bold text-black focus:outline-none focus:border-[#0c6b55] focus:bg-white transition-all"
             />
           </div>
 
@@ -218,7 +218,7 @@ export default function CreatePlaylistPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the mood or vibe..."
-              className="w-full px-3.5 py-3 rounded-xl bg-[#F8F9FA] border border-[#E3E4E6] text-xs font-semibold text-[#111111] focus:outline-none focus:border-[#D7192F] focus:bg-white transition-all"
+              className="w-full px-3.5 py-3 rounded-xl bg-[#F8F9FA] border border-[#E3E4E6] text-xs font-semibold text-[#111111] focus:outline-none focus:border-[#0c6b55] focus:bg-white transition-all"
             />
           </div>
         </div>
@@ -231,7 +231,7 @@ export default function CreatePlaylistPage() {
             </h3>
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-full bg-[#D7192F] text-white text-xs font-bold hover:bg-red-700 transition-colors flex items-center space-x-1 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-full bg-[#0c6b55] text-white text-xs font-bold hover:bg-[#084d3e] transition-colors flex items-center space-x-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>+ Add Songs</span>

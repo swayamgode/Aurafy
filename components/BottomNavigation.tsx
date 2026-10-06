@@ -36,12 +36,12 @@ export default function BottomNavigation() {
           >
             <Icon
               className={`w-6 h-6 transition-colors duration-200 ${
-                isActive ? "text-[#D7192F] stroke-[2.5]" : "text-[#5F6368] stroke-[1.8]"
+                isActive ? "text-[#0c6b55] stroke-[2.5]" : "text-[#5F6368] stroke-[1.8]"
               }`}
             />
             <span
               className={`text-[11px] font-semibold tracking-tight mt-1 transition-colors duration-200 ${
-                isActive ? "text-[#D7192F]" : "text-[#5F6368]"
+                isActive ? "text-[#0c6b55]" : "text-[#5F6368]"
               }`}
             >
               {item.label}

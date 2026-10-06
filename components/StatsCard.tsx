@@ -21,8 +21,8 @@ export default function StatsCard({
   if (variant === "highlight") {
     return (
       <div className="bg-[#2D2D2D] text-white p-6 rounded-3xl relative overflow-hidden shadow-lg border border-white/10">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[#D7192F]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex items-center space-x-2 text-[#D7192F] mb-3">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#0c6b55]/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-center space-x-2 text-[#0c6b55] mb-3">
           <Icon className="w-5 h-5" />
           <span className="text-xs font-bold tracking-wider uppercase text-white/70">
             {label}
@@ -53,7 +53,7 @@ export default function StatsCard({
           {label}
         </p>
         {subtext && (
-          <span className="text-[10px] text-[#D7192F] font-bold mt-1 block">
+          <span className="text-[10px] text-[#0c6b55] font-bold mt-1 block">
             {subtext}
           </span>
         )}

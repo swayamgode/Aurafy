@@ -173,7 +173,7 @@ export default function LockScreenPlayer() {
             {[0.6, 1.0, 0.4, 0.8].map((h, i) => (
               <div
                 key={i}
-                className="w-0.5 bg-[#D7192F] rounded-full transition-all"
+                className="w-0.5 bg-[#0c6b55] rounded-full transition-all"
                 style={{
                   height: isPlaying ? `${h * 100}%` : "30%",
                   animation: isPlaying ? `equalizer 0.8s ease-in-out ${i * 0.15}s infinite alternate` : "none",
@@ -272,7 +272,7 @@ export default function LockScreenPlayer() {
                 className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
                 style={{
                   width: `${progressPct}%`,
-                  background: "linear-gradient(90deg, #D7192F, #ff6b6b)",
+                  background: "linear-gradient(90deg, #0c6b55, #ff6b6b)",
                 }}
               />
               <div
@@ -296,7 +296,7 @@ export default function LockScreenPlayer() {
               onClick={toggleShuffle}
               aria-label="Shuffle"
               className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90 ${
-                isShuffle ? "text-[#D7192F] bg-white/15" : "text-white/60 hover:text-white"
+                isShuffle ? "text-[#0c6b55] bg-white/15" : "text-white/60 hover:text-white"
               }`}
             >
               <Shuffle className="w-4 h-4" />
@@ -317,7 +317,7 @@ export default function LockScreenPlayer() {
               aria-label={isPlaying ? "Pause" : "Play"}
               className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-all cursor-pointer"
               style={{
-                background: "linear-gradient(135deg, #D7192F 0%, #ff4b5c 100%)",
+                background: "linear-gradient(135deg, #0c6b55 0%, #ff4b5c 100%)",
                 boxShadow: "0 6px 24px rgba(215,25,47,0.6), inset 0 1px 1px rgba(255,255,255,0.3)",
               }}
             >
@@ -342,7 +342,7 @@ export default function LockScreenPlayer() {
               onClick={toggleRepeat}
               aria-label="Repeat mode"
               className={`w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90 ${
-                repeatMode !== "off" ? "text-[#D7192F] bg-white/15" : "text-white/60 hover:text-white"
+                repeatMode !== "off" ? "text-[#0c6b55] bg-white/15" : "text-white/60 hover:text-white"
               }`}
             >
               {repeatMode === "one" ? (
@@ -361,7 +361,7 @@ export default function LockScreenPlayer() {
               className="text-white/60 hover:text-white"
             >
               {isMuted || volume === 0 ? (
-                <VolumeX className="w-4 h-4 text-red-400" />
+                <VolumeX className="w-4 h-4 text-[#0c6b55]" />
               ) : (
                 <Volume2 className="w-4 h-4 text-white/70" />
               )}
@@ -374,7 +374,7 @@ export default function LockScreenPlayer() {
               value={isMuted ? 0 : volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
               aria-label="Volume slider"
-              className="w-full h-1 bg-white/20 rounded-full appearance-none accent-[#D7192F] cursor-pointer"
+              className="w-full h-1 bg-white/20 rounded-full appearance-none accent-[#0c6b55] cursor-pointer"
             />
           </div>
         </div>

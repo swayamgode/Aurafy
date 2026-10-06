@@ -81,7 +81,7 @@ export default function HomePage() {
         <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1">
           <Link
             href="/playlist/create"
-            className="flex items-center space-x-1.5 px-4 py-2.5 rounded-full bg-[#111111] text-white text-xs font-bold hover:bg-[#D7192F] active:scale-95 transition-all shrink-0 shadow-xs"
+            className="flex items-center space-x-1.5 px-4 py-2.5 rounded-full bg-[#111111] text-white text-xs font-bold hover:bg-[#0c6b55] active:scale-95 transition-all shrink-0 shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Create Playlist</span>
@@ -91,7 +91,7 @@ export default function HomePage() {
             href="/favorites"
             className="flex items-center space-x-1.5 px-4 py-2.5 rounded-full bg-[#F1F2F3] text-[#111111] text-xs font-bold hover:bg-[#E3E4E6] active:scale-95 transition-all shrink-0"
           >
-            <ListMusic className="w-3.5 h-3.5 text-[#D7192F]" />
+            <ListMusic className="w-3.5 h-3.5 text-[#0c6b55]" />
             <span>My Library</span>
           </Link>
 
@@ -99,7 +99,7 @@ export default function HomePage() {
             href="/activity"
             className="flex items-center space-x-1.5 px-4 py-2.5 rounded-full bg-[#F1F2F3] text-[#111111] text-xs font-bold hover:bg-[#E3E4E6] active:scale-95 transition-all shrink-0"
           >
-            <Sparkles className="w-3.5 h-3.5 text-[#D7192F]" />
+            <Sparkles className="w-3.5 h-3.5 text-[#0c6b55]" />
             <span>Activity Stats</span>
           </Link>
 
@@ -129,8 +129,8 @@ export default function HomePage() {
               />
               {/* Gradient Overlay for Readability */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 flex flex-col justify-end">
-                <div className="flex items-center space-x-2 text-[#D7192F] mb-1">
-                  <Flame className="w-4 h-4 fill-[#D7192F]" />
+                <div className="flex items-center space-x-2 text-[#0c6b55] mb-1">
+                  <Flame className="w-4 h-4 fill-[#0c6b55]" />
                   <span className="text-[11px] font-extrabold tracking-widest uppercase">
                     DOWNLOADED
                   </span>
@@ -144,7 +144,7 @@ export default function HomePage() {
                 <div className="mt-4 flex items-center space-x-3">
                   <button
                     type="button"
-                    className="px-5 py-2.5 rounded-full bg-[#D7192F] text-white text-xs font-bold flex items-center space-x-2 shadow-lg group-hover:bg-red-700 transition-colors"
+                    className="px-5 py-2.5 rounded-full bg-[#0c6b55] text-white text-xs font-bold flex items-center space-x-2 shadow-lg group-hover:bg-[#084d3e] transition-colors"
                   >
                     <Play className="w-4 h-4 fill-white ml-0.5" />
                     <span>PLAY NOW</span>
@@ -156,7 +156,7 @@ export default function HomePage() {
         ) : (
           <section aria-label="Get Started">
             <Link href="/search">
-              <div className="relative w-full h-48 sm:h-56 rounded-3xl overflow-hidden bg-gradient-to-br from-[#111111] to-[#D7192F] shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform flex flex-col items-center justify-center text-center p-6">
+              <div className="relative w-full h-48 sm:h-56 rounded-3xl overflow-hidden bg-gradient-to-br from-[#111111] to-[#0c6b55] shadow-xl cursor-pointer group border border-black/10 active:scale-[0.99] transition-transform flex flex-col items-center justify-center text-center p-6">
                 <Sparkles className="w-10 h-10 text-white/60 mb-3" />
                 <h2 className="text-xl font-extrabold text-white">Start Your Journey</h2>
                 <p className="text-xs text-white/70 mt-1">Search for songs and download them for offline listening</p>
@@ -182,7 +182,7 @@ export default function HomePage() {
             </h3>
             <Link
               href="/playlist/create"
-              className="text-xs font-bold text-[#D7192F] hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-[#0c6b55] hover:underline flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New</span>
@@ -193,12 +193,12 @@ export default function HomePage() {
             {/* Create Playlist Shortcut Card */}
             <Link
               href="/playlist/create"
-              className="w-32 sm:w-36 h-40 sm:h-44 rounded-2xl bg-white border-2 border-dashed border-[#E3E4E6] hover:border-[#D7192F] flex flex-col items-center justify-center p-3 text-center shrink-0 shadow-2xs hover:shadow-xs active:scale-95 transition-all group cursor-pointer"
+              className="w-32 sm:w-36 h-40 sm:h-44 rounded-2xl bg-white border-2 border-dashed border-[#E3E4E6] hover:border-[#0c6b55] flex flex-col items-center justify-center p-3 text-center shrink-0 shadow-2xs hover:shadow-xs active:scale-95 transition-all group cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-full bg-red-50 group-hover:bg-[#D7192F] flex items-center justify-center transition-colors mb-2">
-                <Plus className="w-5 h-5 text-[#D7192F] group-hover:text-white transition-colors" />
+              <div className="w-10 h-10 rounded-full bg-[#e6f4f0] group-hover:bg-[#0c6b55] flex items-center justify-center transition-colors mb-2">
+                <Plus className="w-5 h-5 text-[#0c6b55] group-hover:text-white transition-colors" />
               </div>
-              <span className="text-xs font-bold text-black group-hover:text-[#D7192F] transition-colors">
+              <span className="text-xs font-bold text-black group-hover:text-[#0c6b55] transition-colors">
                 New Playlist
               </span>
               <span className="text-[10px] text-[#8A8D91] mt-0.5">Create custom vibe</span>
@@ -221,7 +221,7 @@ export default function HomePage() {
               </h3>
               <Link
                 href="/favorites"
-                className="text-xs font-bold text-[#5F6368] hover:text-[#D7192F] transition-colors"
+                className="text-xs font-bold text-[#5F6368] hover:text-[#0c6b55] transition-colors"
               >
                 See All ({activeSongs.length})
               </Link>
@@ -281,7 +281,7 @@ export default function HomePage() {
           </section>
         ) : (
           <section aria-label="Discover Music" className="bg-white rounded-3xl p-6 border border-[#E3E4E6] text-center space-y-3 shadow-2xs">
-            <div className="w-12 h-12 rounded-full bg-red-50 text-[#D7192F] flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-full bg-[#e6f4f0] text-[#0c6b55] flex items-center justify-center mx-auto">
               <Sparkles className="w-6 h-6" />
             </div>
             <h4 className="text-base font-extrabold text-black">Start Your Music Collection</h4>
@@ -290,7 +290,7 @@ export default function HomePage() {
             </p>
             <Link
               href="/search"
-              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-black text-white text-xs font-bold hover:bg-[#D7192F] transition-colors"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-black text-white text-xs font-bold hover:bg-[#0c6b55] transition-colors"
             >
               <span>Search Songs Now</span>
             </Link>

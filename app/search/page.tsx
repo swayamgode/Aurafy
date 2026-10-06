@@ -91,8 +91,8 @@ export default function SearchPage() {
         {loading && (
           <div className="py-16 flex flex-col items-center justify-center text-[#5F6368] space-y-3">
             <div className="relative w-12 h-12 flex items-center justify-center">
-              <Loader2 className="w-10 h-10 animate-spin text-[#D7192F]" />
-              <PlayCircle className="w-4 h-4 absolute text-[#D7192F]" />
+              <Loader2 className="w-10 h-10 animate-spin text-[#0c6b55]" />
+              <PlayCircle className="w-4 h-4 absolute text-[#0c6b55]" />
             </div>
             <span className="text-sm font-semibold text-[#5F6368]">Searching music...</span>
           </div>
@@ -103,9 +103,9 @@ export default function SearchPage() {
           <div className="space-y-5">
             {/* Header info */}
             <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-100">
-                <Music2 className="w-3.5 h-3.5 text-[#D7192F]" />
-                <span className="text-xs font-semibold text-[#D7192F]">Top Matches</span>
+              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#e6f4f0] border border-red-100">
+                <Music2 className="w-3.5 h-3.5 text-[#0c6b55]" />
+                <span className="text-xs font-semibold text-[#0c6b55]">Top Matches</span>
               </div>
               <span className="text-xs text-[#8A8D91]">for &ldquo;{query}&rdquo;</span>
             </div>

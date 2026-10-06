@@ -15,7 +15,7 @@ export default function ArtistCard({ artist, onClick }: ArtistCardProps) {
       onClick={onClick}
       className="group flex flex-col items-center w-24 sm:w-28 shrink-0 cursor-pointer transition-transform hover:scale-105 duration-200"
     >
-      <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-gray-200 border-2 border-white shadow-xs group-hover:border-[#D7192F] transition-colors">
+      <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-gray-200 border-2 border-white shadow-xs group-hover:border-[#0c6b55] transition-colors">
         <Image
           src={artist.imageUrl}
           alt={artist.name}
@@ -24,7 +24,7 @@ export default function ArtistCard({ artist, onClick }: ArtistCardProps) {
           className="object-cover"
         />
       </div>
-      <h4 className="text-xs sm:text-sm font-semibold text-black text-center truncate w-full mt-2 group-hover:text-[#D7192F] transition-colors">
+      <h4 className="text-xs sm:text-sm font-semibold text-black text-center truncate w-full mt-2 group-hover:text-[#0c6b55] transition-colors">
         {artist.name}
       </h4>
       {artist.genre && (

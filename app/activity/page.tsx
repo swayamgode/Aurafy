@@ -107,7 +107,7 @@ export default function ActivityPage() {
                     </div>
                     <div className="w-full h-2 bg-[#F1F2F3] rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-black to-[#D7192F] rounded-full transition-all duration-500"
+                        className="h-full bg-gradient-to-r from-black to-[#0c6b55] rounded-full transition-all duration-500"
                         style={{ width: `${genre.percentage}%` }}
                       />
                     </div>
@@ -154,7 +154,7 @@ export default function ActivityPage() {
         {activeTab === "Stats" && (
           <div className="space-y-4">
             <div className="p-6 bg-white rounded-3xl border border-[#E3E4E6] text-center space-y-2">
-              <Sparkles className="w-8 h-8 text-[#D7192F] mx-auto" />
+              <Sparkles className="w-8 h-8 text-[#0c6b55] mx-auto" />
               <h3 className="text-lg font-extrabold text-black">Top 1% Superfan</h3>
               <p className="text-xs text-[#5F6368]">
                 You streamed more Lo-Fi Beats than 99% of Hue listeners this month!

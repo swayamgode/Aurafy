@@ -37,7 +37,7 @@ export default function AlbumCard({ track }: AlbumCardProps) {
           </div>
         </div>
       </div>
-      <h4 className="text-xs sm:text-sm font-semibold text-black truncate mt-2 group-hover:text-[#D7192F] transition-colors">
+      <h4 className="text-xs sm:text-sm font-semibold text-black truncate mt-2 group-hover:text-[#0c6b55] transition-colors">
         {track.title}
       </h4>
       <p className="text-[11px] sm:text-xs text-[#5F6368] truncate font-normal mt-0.5">

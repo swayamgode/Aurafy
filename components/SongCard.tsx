@@ -62,7 +62,7 @@ export default function SongCard({
       <div
         onClick={handlePlayClick}
         className={`group flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer ${
-          isCurrent ? "bg-[#D7192F]/10 border border-[#D7192F]/20" : "hover:bg-[#F1F2F3]"
+          isCurrent ? "bg-[#0c6b55]/10 border border-[#0c6b55]/20" : "hover:bg-[#F1F2F3]"
         }`}
       >
         <div className="flex items-center space-x-3 min-w-0 pr-2">
@@ -82,7 +82,7 @@ export default function SongCard({
           </div>
           <div className="min-w-0">
             <div className="flex items-center space-x-1.5">
-              <h4 className={`text-xs font-semibold truncate ${isCurrent ? "text-[#D7192F]" : "text-black"}`}>
+              <h4 className={`text-xs font-semibold truncate ${isCurrent ? "text-[#0c6b55]" : "text-black"}`}>
                 {track.title}
               </h4>
               {isSongDownloaded && (
@@ -104,7 +104,7 @@ export default function SongCard({
       onClick={handlePlayClick}
       className={`group flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer border ${
         isCurrent
-          ? "bg-white border-[#D7192F]/40 shadow-sm"
+          ? "bg-white border-[#0c6b55]/40 shadow-sm"
           : "bg-white border-[#E3E4E6] hover:border-gray-300 hover:shadow-sm"
       }`}
     >
@@ -135,7 +135,7 @@ export default function SongCard({
           <div className="flex items-center space-x-1.5">
             <h4
               className={`text-sm font-semibold truncate ${
-                isCurrent ? "text-[#D7192F]" : "text-black group-hover:text-[#D7192F]"
+                isCurrent ? "text-[#0c6b55]" : "text-black group-hover:text-[#0c6b55]"
               }`}
             >
               {track.title}
@@ -168,7 +168,7 @@ export default function SongCard({
               onRemove();
             }}
             aria-label="Remove from playlist"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#5F6368] hover:text-red-600 hover:bg-red-50 transition-colors"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[#5F6368] hover:text-red-600 hover:bg-[#e6f4f0] transition-colors"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -176,13 +176,13 @@ export default function SongCard({
           <button
             onClick={handleHeartClick}
             aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#5F6368] hover:text-[#D7192F] transition-transform active:scale-125"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[#5F6368] hover:text-[#0c6b55] transition-transform active:scale-125"
           >
             <Heart
               className={`w-4 h-4 transition-colors ${
                 isFavorited
-                  ? "fill-[#D7192F] text-[#D7192F]"
-                  : "text-[#5F6368] hover:text-[#D7192F]"
+                  ? "fill-[#0c6b55] text-[#0c6b55]"
+                  : "text-[#5F6368] hover:text-[#0c6b55]"
               }`}
             />
           </button>

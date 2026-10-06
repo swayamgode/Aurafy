@@ -110,7 +110,7 @@ export default function ProfilePage() {
         <div className="bg-white p-5 rounded-3xl border border-[#E3E4E6] shadow-2xs space-y-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center text-[#D7192F]">
+              <div className="w-10 h-10 rounded-2xl bg-[#e6f4f0] flex items-center justify-center text-[#0c6b55]">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
@@ -168,7 +168,7 @@ export default function ProfilePage() {
                     type="button"
                     onClick={handleClearKey}
                     aria-label="Remove API Key"
-                    className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                    className="p-2.5 text-red-600 hover:bg-[#e6f4f0] rounded-xl transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -183,7 +183,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => setIsEditingKey(true)}
-                className="text-xs font-bold text-[#D7192F] hover:underline cursor-pointer"
+                className="text-xs font-bold text-[#0c6b55] hover:underline cursor-pointer"
               >
                 Change Key
               </button>
@@ -212,7 +212,7 @@ export default function ProfilePage() {
           </div>
           <Link
             href="/favorites"
-            className="text-xs font-bold text-[#D7192F] hover:underline flex items-center space-x-0.5"
+            className="text-xs font-bold text-[#0c6b55] hover:underline flex items-center space-x-0.5"
           >
             <span>View</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -226,7 +226,7 @@ export default function ProfilePage() {
             className="flex items-center justify-between p-4 hover:bg-[#F8F9FA] transition-colors"
           >
             <div className="flex items-center space-x-3 text-black font-semibold text-sm">
-              <Sparkles className="w-5 h-5 text-[#D7192F]" />
+              <Sparkles className="w-5 h-5 text-[#0c6b55]" />
               <span>Listening Activity Stats</span>
             </div>
             <ChevronRight className="w-4 h-4 text-[#8A8D91]" />
@@ -237,7 +237,7 @@ export default function ProfilePage() {
             className="flex items-center justify-between p-4 hover:bg-[#F8F9FA] transition-colors"
           >
             <div className="flex items-center space-x-3 text-black font-semibold text-sm">
-              <Heart className="w-5 h-5 text-[#D7192F]" />
+              <Heart className="w-5 h-5 text-[#0c6b55]" />
               <span>Favorite Songs</span>
             </div>
             <ChevronRight className="w-4 h-4 text-[#8A8D91]" />
@@ -271,13 +271,13 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center justify-between p-4 hover:bg-red-50 text-red-600 transition-colors text-left cursor-pointer"
+            className="w-full flex items-center justify-between p-4 hover:bg-[#e6f4f0] text-red-600 transition-colors text-left cursor-pointer"
           >
             <div className="flex items-center space-x-3 font-semibold text-sm">
               <LogOut className="w-5 h-5" />
               <span>Log Out of Hue</span>
             </div>
-            <ChevronRight className="w-4 h-4 text-red-400" />
+            <ChevronRight className="w-4 h-4 text-[#0c6b55]" />
           </button>
         </div>
       </div>

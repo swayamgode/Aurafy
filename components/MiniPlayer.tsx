@@ -34,7 +34,7 @@ export default function MiniPlayer() {
         </div>
         <div className="min-w-0 flex-1 pr-2">
           <div className="flex items-center space-x-2">
-            <h4 className="text-xs sm:text-sm font-semibold truncate text-white group-hover:text-red-400 transition-colors">
+            <h4 className="text-xs sm:text-sm font-semibold truncate text-white group-hover:text-[#0c6b55] transition-colors">
               {currentTrack.title}
             </h4>
             <AudioEqualizer isPlaying={isPlaying} />
@@ -79,7 +79,7 @@ export default function MiniPlayer() {
           onClick={() => openVR()}
           aria-label="Enter 3D VR Mode"
           title="3D Virtual Reality Concert & Lofi"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[#D7192F] hover:bg-white/10 active:scale-90 transition-all cursor-pointer ml-0.5"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[#0c6b55] hover:bg-white/10 active:scale-90 transition-all cursor-pointer ml-0.5"
         >
           <Glasses className="w-4 h-4" />
         </button>
@@ -88,7 +88,7 @@ export default function MiniPlayer() {
           onClick={() => openBeatSaber()}
           aria-label="Open Beat Saber Game"
           title="Beat Saber Rhythm Game"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[#D7192F] hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[#0c6b55] hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
         >
           <Sword className="w-4 h-4" />
         </button>

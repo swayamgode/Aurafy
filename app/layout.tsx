@@ -47,7 +47,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#D7192F",
+  themeColor: "#0c322d",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -69,7 +69,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Hue" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="msapplication-TileColor" content="#D7192F" />
+        <meta name="msapplication-TileColor" content="#0c6b55" />
         <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body className="bg-[#F8F9FA] text-[#111111] antialiased min-h-screen pb-32">

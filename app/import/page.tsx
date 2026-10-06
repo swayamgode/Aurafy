@@ -198,8 +198,8 @@ export default function ImportPage() {
         {/* Banner Header */}
         <div className="bg-gradient-to-r from-[#111111] via-[#2D2D2D] to-red-950 text-white p-6 rounded-3xl shadow-xl border border-white/10 relative overflow-hidden">
           <div className="relative z-10 space-y-1">
-            <div className="flex items-center space-x-2 text-red-400">
-              <Download className="w-5 h-5 text-[#D7192F]" />
+            <div className="flex items-center space-x-2 text-[#0c6b55]">
+              <Download className="w-5 h-5 text-[#0c6b55]" />
               <span className="text-[11px] font-extrabold uppercase tracking-widest text-white/80">
                 Direct Song Downloader
               </span>
@@ -217,7 +217,7 @@ export default function ImportPage() {
         {/* ── Direct Song Search & Converter ── */}
         <section aria-label="Song Search Downloader" className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E3E4E6] shadow-sm space-y-4">
           <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-red-50 text-[#D7192F] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-2xl bg-[#e6f4f0] text-[#0c6b55] flex items-center justify-center shrink-0">
               <Search className="w-5 h-5" />
             </div>
             <div>
@@ -234,7 +234,7 @@ export default function ImportPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search song title or artist (e.g. Adele, Blinding Lights)..."
-              className="w-full pl-11 pr-10 py-3.5 rounded-2xl bg-[#F8F9FA] border border-[#E3E4E6] text-xs font-semibold text-black placeholder:text-[#8A8D91] focus:outline-none focus:border-[#D7192F] focus:bg-white transition-all shadow-2xs"
+              className="w-full pl-11 pr-10 py-3.5 rounded-2xl bg-[#F8F9FA] border border-[#E3E4E6] text-xs font-semibold text-black placeholder:text-[#8A8D91] focus:outline-none focus:border-[#0c6b55] focus:bg-white transition-all shadow-2xs"
             />
             {searchQuery && (
               <button
@@ -254,7 +254,7 @@ export default function ImportPage() {
                 {searchQuery.trim() ? "Search Results" : "Featured & Trending Songs"}
               </h4>
               {isSearching && (
-                <div className="flex items-center space-x-1.5 text-xs text-[#D7192F] font-bold">
+                <div className="flex items-center space-x-1.5 text-xs text-[#0c6b55] font-bold">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Searching...</span>
                 </div>
@@ -302,7 +302,7 @@ export default function ImportPage() {
                         className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs ${
                           downloaded
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-                            : "bg-[#D7192F] hover:bg-red-700 text-white active:scale-95"
+                            : "bg-[#0c6b55] hover:bg-[#084d3e] text-white active:scale-95"
                         }`}
                       >
                         {downloading ? (
@@ -362,7 +362,7 @@ export default function ImportPage() {
                     onChange={(e) => setYtUrl(e.target.value)}
                     placeholder="https://www.youtube.com/watch?v=..."
                     required
-                    className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-[#F8F9FA] border border-[#E3E4E6] text-xs font-semibold text-black placeholder:text-[#8A8D91] focus:outline-none focus:border-[#D7192F] transition-all"
+                    className="w-full pl-4 pr-10 py-3.5 rounded-2xl bg-[#F8F9FA] border border-[#E3E4E6] text-xs font-semibold text-black placeholder:text-[#8A8D91] focus:outline-none focus:border-[#0c6b55] transition-all"
                   />
                   {ytUrl && (
                     <button
@@ -378,7 +378,7 @@ export default function ImportPage() {
                 <button
                   type="submit"
                   disabled={isUrlProcessing || !ytUrl.trim()}
-                  className="w-full py-3.5 rounded-2xl bg-[#D7192F] hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-md active:scale-98 transition-all disabled:opacity-60 flex items-center justify-center space-x-2 cursor-pointer"
+                  className="w-full py-3.5 rounded-2xl bg-[#0c6b55] hover:bg-[#084d3e] text-white font-bold text-xs uppercase tracking-wider shadow-md active:scale-98 transition-all disabled:opacity-60 flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   {isUrlProcessing ? (
                     <>
@@ -411,8 +411,8 @@ export default function ImportPage() {
             </div>
           </div>
 
-          <label className="w-full py-3.5 rounded-2xl border-2 border-dashed border-[#E3E4E6] hover:border-[#D7192F] bg-[#F8F9FA] hover:bg-red-50/50 flex items-center justify-center space-x-2 cursor-pointer transition-all">
-            <Music2 className="w-4 h-4 text-[#D7192F]" />
+          <label className="w-full py-3.5 rounded-2xl border-2 border-dashed border-[#E3E4E6] hover:border-[#0c6b55] bg-[#F8F9FA] hover:bg-[#e6f4f0]/50 flex items-center justify-center space-x-2 cursor-pointer transition-all">
+            <Music2 className="w-4 h-4 text-[#0c6b55]" />
             <span className="text-xs font-bold text-black">Choose Files from Phone...</span>
             <input
               type="file"
@@ -437,7 +437,7 @@ export default function ImportPage() {
                     className="flex items-center justify-between p-3 rounded-2xl bg-[#F8F9FA] hover:bg-gray-100 transition-colors cursor-pointer border border-[#E3E4E6]"
                   >
                     <div className="flex items-center space-x-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-red-100 text-[#D7192F] flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-red-100 text-[#0c6b55] flex items-center justify-center shrink-0">
                         <Music2 className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">

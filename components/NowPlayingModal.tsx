@@ -104,7 +104,7 @@ export default function NowPlayingModal() {
             title="Beat Saber Rhythm Game"
             className="w-10 h-10 rounded-full flex items-center justify-center text-black hover:bg-[#E3E4E6] active:scale-95 transition-all cursor-pointer relative"
           >
-            <Sword className="w-5 h-5 stroke-[2] text-[#D7192F]" />
+            <Sword className="w-5 h-5 stroke-[2] text-[#0c6b55]" />
           </button>
 
           <button
@@ -113,8 +113,8 @@ export default function NowPlayingModal() {
             title="Enter 3D Virtual Reality Concert & Lofi"
             className="w-10 h-10 rounded-full flex items-center justify-center text-black hover:bg-[#E3E4E6] active:scale-95 transition-all cursor-pointer relative"
           >
-            <Glasses className="w-5 h-5 stroke-[2] text-[#D7192F]" />
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#D7192F] animate-pulse" />
+            <Glasses className="w-5 h-5 stroke-[2] text-[#0c6b55]" />
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#0c6b55] animate-pulse" />
           </button>
 
           <button
@@ -160,8 +160,8 @@ export default function NowPlayingModal() {
             onClick={() => openVR()}
             className="group relative flex items-center space-x-2.5 px-5 py-2.5 rounded-full bg-linear-to-r from-neutral-900 via-neutral-800 to-neutral-900 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95 transition-all border border-white/10 cursor-pointer"
           >
-            <span className="w-2 h-2 rounded-full bg-[#D7192F] animate-ping" />
-            <Glasses className="w-4 h-4 text-[#D7192F]" />
+            <span className="w-2 h-2 rounded-full bg-[#0c6b55] animate-ping" />
+            <Glasses className="w-4 h-4 text-[#0c6b55]" />
             <span className="text-xs font-extrabold tracking-wider uppercase">
               Enter 3D Concert & Lofi VR
             </span>
@@ -194,7 +194,7 @@ export default function NowPlayingModal() {
               }`}
             >
               {isDownloading ? (
-                <div className="w-4 h-4 border-2 border-[#D7192F] border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-[#0c6b55] border-t-transparent rounded-full animate-spin" />
               ) : isCurrentDownloaded ? (
                 <Check className="w-5 h-5 text-emerald-600" />
               ) : (
@@ -209,7 +209,7 @@ export default function NowPlayingModal() {
             >
               <Heart
                 className={`w-6 h-6 ${
-                  isFav ? "fill-[#D7192F] text-[#D7192F]" : "text-[#5F6368]"
+                  isFav ? "fill-[#0c6b55] text-[#0c6b55]" : "text-[#5F6368]"
                 }`}
               />
             </button>
@@ -225,7 +225,7 @@ export default function NowPlayingModal() {
             value={progress}
             onChange={(e) => seekTo(Number(e.target.value))}
             aria-label="Seek track position"
-            className="w-full accent-[#D7192F] h-1.5 bg-[#E3E4E6] rounded-lg cursor-pointer"
+            className="w-full accent-[#0c6b55] h-1.5 bg-[#E3E4E6] rounded-lg cursor-pointer"
           />
           <div className="flex justify-between text-xs text-[#8A8D91] font-semibold mt-2">
             <span>{formatTime(progress)}</span>
@@ -239,7 +239,7 @@ export default function NowPlayingModal() {
             onClick={toggleShuffle}
             aria-label="Toggle Shuffle"
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-              isShuffle ? "text-[#D7192F] bg-[#D7192F]/10" : "text-[#5F6368] hover:text-black"
+              isShuffle ? "text-[#0c6b55] bg-[#0c6b55]/10" : "text-[#5F6368] hover:text-black"
             }`}
           >
             <Shuffle className="w-5 h-5" />
@@ -278,13 +278,13 @@ export default function NowPlayingModal() {
             aria-label="Toggle Repeat Mode"
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors relative ${
               repeatMode !== "off"
-                ? "text-[#D7192F] bg-[#D7192F]/10"
+                ? "text-[#0c6b55] bg-[#0c6b55]/10"
                 : "text-[#5F6368] hover:text-black"
             }`}
           >
             <Repeat className="w-5 h-5" />
             {repeatMode === "one" && (
-              <span className="absolute text-[9px] font-bold top-1 right-1 bg-[#D7192F] text-white rounded-full w-3 h-3 flex items-center justify-center">
+              <span className="absolute text-[9px] font-bold top-1 right-1 bg-[#0c6b55] text-white rounded-full w-3 h-3 flex items-center justify-center">
                 1
               </span>
             )}
@@ -307,7 +307,7 @@ export default function NowPlayingModal() {
           <button
             onClick={() => setShowQueueDrawer((prev) => !prev)}
             aria-label="Toggle Queue Drawer"
-            className="px-3 py-1.5 rounded-full bg-black text-white text-xs font-semibold hover:bg-[#D7192F] transition-colors flex items-center space-x-1"
+            className="px-3 py-1.5 rounded-full bg-black text-white text-xs font-semibold hover:bg-[#0c6b55] transition-colors flex items-center space-x-1"
           >
             <ListMusic className="w-3.5 h-3.5" />
             <span>QUEUE ({queue.length})</span>
@@ -323,7 +323,7 @@ export default function NowPlayingModal() {
               </h4>
               <button
                 onClick={clearQueue}
-                className="text-[11px] font-semibold text-[#D7192F] hover:underline"
+                className="text-[11px] font-semibold text-[#0c6b55] hover:underline"
               >
                 Clear Queue
               </button>
