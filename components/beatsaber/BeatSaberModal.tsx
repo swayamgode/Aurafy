@@ -4,22 +4,15 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Trophy,
-  Zap,
-  Heart,
-  Target,
-  AlertTriangle,
   RotateCcw,
   HelpCircle,
   Smartphone,
-  MousePointer,
   Sparkles,
   Flame,
-  Star,
-  ShieldAlert,
+  Target,
+  Trophy,
+  Zap,
+  AlertTriangle,
 } from "lucide-react";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useToast } from "@/lib/ToastContext";
@@ -32,8 +25,8 @@ const BeatSaberGame = dynamic(() => import("./BeatSaberGame"), {
   loading: () => (
     <div className="absolute inset-0 flex items-center justify-center bg-[#02040a]">
       <div className="text-center space-y-3">
-        <div className="w-16 h-16 border-4 border-[#00f0ff] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-white/70 text-sm font-medium">Loading Beat Burst VR...</p>
+        <div className="w-14 h-14 border-4 border-[#00f0ff] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-white/70 text-xs font-medium">Loading Beat Burst VR...</p>
       </div>
     </div>
   ),
@@ -57,12 +50,14 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     currentTrack,
     isPlaying,
     togglePlay,
-    nextTrack,
-    prevTrack,
+    seekTo,
+    duration,
+    progress,
   } = usePlayer();
   const { showToast } = useToast();
 
   const [gameStarted, setGameStarted] = useState(false);
+  const [isGameOver, setIsGameOver] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [score, setScore] = useState<ScoreUpdate>({
     score: 0,
@@ -70,23 +65,85 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     multiplier: 1,
     misses: 0,
     accuracy: 100,
+    hits: 0,
   });
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [highScore, setHighScore] = useState(0);
+  const [isNewHighScore, setIsNewHighScore] = useState(false);
+
+  // Crosshair states
+  const [isLockedOn, setIsLockedOn] = useState(false);
+  const [misfireFlash, setMisfireFlash] = useState(false);
+  const misfireTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Visual screen shimmers
   const [hitFlash, setHitFlash] = useState(false);
   const [missFlash, setMissFlash] = useState(false);
-  const [bpm] = useState(128);
-  const [recenterCount, setRecenterCount] = useState(0);
-  const [isGyroActive, setIsGyroActive] = useState(false);
-  const [isGyroEnabled, setIsGyroEnabled] = useState(true); // 360 VR motion look enabled by default
-  const [showControlsModal, setShowControlsModal] = useState(false);
-
   const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const missTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [recenterCount, setRecenterCount] = useState(0);
+  const [isGyroEnabled, setIsGyroEnabled] = useState(true);
+  const [showControlsModal, setShowControlsModal] = useState(false);
+
+  // ── Load High Score ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`aurafy_beatburst_high_${difficulty}`);
+      setHighScore(saved ? parseInt(saved, 10) : 0);
+    }
+  }, [difficulty]);
+
+  // ── Track Max Combo ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (score.combo > maxCombo) {
+      setMaxCombo(score.combo);
+    }
+  }, [score.combo, maxCombo]);
+
+  // ── Song Ended / Game Over Trigger ───────────────────────────────────────────
+  const handleGameOver = useCallback(() => {
+    setGameStarted(false);
+    setIsGameOver(true);
+
+    // Save and check high score
+    const key = `aurafy_beatburst_high_${difficulty}`;
+    const currentHigh = localStorage.getItem(key);
+    const prevBest = currentHigh ? parseInt(currentHigh, 10) : 0;
+    if (score.score > prevBest) {
+      localStorage.setItem(key, score.score.toString());
+      setHighScore(score.score);
+      setIsNewHighScore(true);
+    } else {
+      setIsNewHighScore(false);
+    }
+  }, [difficulty, score.score]);
+
+  // Listen for aurafy-song-ended event
+  useEffect(() => {
+    const onSongEnded = () => {
+      if (gameStarted) {
+        handleGameOver();
+      }
+    };
+    window.addEventListener("aurafy-song-ended", onSongEnded);
+    return () => window.removeEventListener("aurafy-song-ended", onSongEnded);
+  }, [gameStarted, handleGameOver]);
+
+  // Check if song reached duration
+  useEffect(() => {
+    if (gameStarted && duration > 10 && progress >= duration - 0.5) {
+      handleGameOver();
+    }
+  }, [gameStarted, progress, duration, handleGameOver]);
 
   // ── Close Guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) {
       setGameStarted(false);
-      setScore({ score: 0, combo: 0, multiplier: 1, misses: 0, accuracy: 100 });
+      setIsGameOver(false);
+      setScore({ score: 0, combo: 0, multiplier: 1, misses: 0, accuracy: 100, hits: 0 });
+      setMaxCombo(0);
       setShowControlsModal(false);
     }
   }, [isOpen]);
@@ -115,14 +172,33 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
       return;
     }
     await requestGyroPermission();
-    setScore({ score: 0, combo: 0, multiplier: 1, misses: 0, accuracy: 100 });
+    setScore({ score: 0, combo: 0, multiplier: 1, misses: 0, accuracy: 100, hits: 0 });
+    setMaxCombo(0);
+    setIsGameOver(false);
     setGameStarted(true);
     setRecenterCount((c) => c + 1);
+
     if (!isPlaying) togglePlay();
     try {
       window._aurafyResume?.();
     } catch (_) {}
-    showToast(`Beat Burst started — ${DIFFICULTY_LABELS[difficulty].label} mode!`, "success");
+    showToast(`Beat Burst started — ${DIFFICULTY_LABELS[difficulty].label}!`, "success");
+  };
+
+  // ── Restart Game ──────────────────────────────────────────────────────────
+  const handleRestart = async () => {
+    seekTo(0);
+    try {
+      window._aurafySeek?.(0);
+      window._aurafyResume?.();
+    } catch (_) {}
+    if (!isPlaying) togglePlay();
+
+    setScore({ score: 0, combo: 0, multiplier: 1, misses: 0, accuracy: 100, hits: 0 });
+    setMaxCombo(0);
+    setIsGameOver(false);
+    setGameStarted(true);
+    setRecenterCount((c) => c + 1);
   };
 
   const handleRecenter = () => {
@@ -130,36 +206,60 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
     showToast("VR view recentered!", "info");
   };
 
-  // ── Game Engine Callbacks ─────────────────────────────────────────────────
+  // ── Crosshair Callbacks ───────────────────────────────────────────────────
+  const handleTargetLock = useCallback((locked: boolean) => {
+    setIsLockedOn(locked);
+  }, []);
+
+  const handleMisfire = useCallback(() => {
+    setMisfireFlash(true);
+    if (misfireTimer.current) clearTimeout(misfireTimer.current);
+    misfireTimer.current = setTimeout(() => setMisfireFlash(false), 240);
+  }, []);
+
   const handleScoreUpdate = useCallback((update: ScoreUpdate) => {
     setScore(update);
   }, []);
 
-  const handleBlockHit = useCallback((isSpecial: boolean, _intensity: number) => {
+  const handleBlockHit = useCallback((isSpecial: boolean) => {
     setHitFlash(true);
     if (hitTimer.current) clearTimeout(hitTimer.current);
-    hitTimer.current = setTimeout(() => setHitFlash(false), isSpecial ? 220 : 140);
+    hitTimer.current = setTimeout(() => setHitFlash(false), isSpecial ? 220 : 130);
   }, []);
 
   const handleMiss = useCallback(() => {
     setMissFlash(true);
     if (missTimer.current) clearTimeout(missTimer.current);
-    missTimer.current = setTimeout(() => setMissFlash(false), 300);
+    missTimer.current = setTimeout(() => setMissFlash(false), 260);
   }, []);
 
   if (!isOpen) return null;
 
-  const diff = DIFFICULTY_LABELS[difficulty];
+  // ── Rank Evaluation ───────────────────────────────────────────────────────
+  const getRankInfo = () => {
+    if (score.accuracy >= 94 && maxCombo >= 20) {
+      return { rank: "S", label: "FLAWLESS", color: "text-amber-400", border: "border-amber-400/80", bg: "bg-amber-500/20" };
+    }
+    if (score.accuracy >= 85) {
+      return { rank: "A", label: "EXCELLENT", color: "text-cyan-400", border: "border-cyan-400/80", bg: "bg-cyan-500/20" };
+    }
+    if (score.accuracy >= 70) {
+      return { rank: "B", label: "GREAT", color: "text-purple-400", border: "border-purple-400/80", bg: "bg-purple-500/20" };
+    }
+    return { rank: "C", label: "CLEARED", color: "text-emerald-400", border: "border-emerald-400/80", bg: "bg-emerald-500/20" };
+  };
+
+  const rankInfo = getRankInfo();
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-[#02040a] overflow-hidden select-none">
 
       {/* ── Visual Hit / Miss Flash Shimmers ── */}
       {hitFlash && (
-        <div className="absolute inset-0 pointer-events-none z-30 border-[6px] border-[#00f0ff]/60 opacity-80 animate-pulse" />
+        <div className="absolute inset-0 pointer-events-none z-30 border-[4px] border-[#00f0ff]/50 opacity-70 animate-pulse" />
       )}
       {missFlash && (
-        <div className="absolute inset-0 pointer-events-none z-30 bg-red-600/10 border-[5px] border-red-500/50" />
+        <div className="absolute inset-0 pointer-events-none z-30 bg-red-600/10 border-[4px] border-red-500/40" />
       )}
 
       {/* ── 3D Game Canvas ── */}
@@ -172,181 +272,193 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
               onScoreUpdate={handleScoreUpdate}
               onBlockHit={handleBlockHit}
               onMiss={handleMiss}
-              bpm={bpm}
+              onTargetLock={handleTargetLock}
+              onMisfire={handleMisfire}
               recenterTrigger={recenterCount}
               isGyroEnabled={isGyroEnabled}
-              onGyroActive={setIsGyroActive}
             />
           </div>
 
           {/* Holographic Cyber Reticle Crosshair in Center */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
             <div className="relative flex items-center justify-center">
-              <div className="w-9 h-9 rounded-full border border-cyan-400/50 flex items-center justify-center">
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-sm shadow-cyan-400 animate-ping" />
+              {/* Outer aiming ring (Compact 24px) */}
+              <div
+                className={`rounded-full border flex items-center justify-center transition-all duration-120 ${
+                  isLockedOn
+                    ? "w-8 h-8 border-emerald-400 bg-emerald-400/20 shadow-[0_0_14px_rgba(52,211,153,0.9)] scale-110"
+                    : misfireFlash
+                    ? "w-7 h-7 border-red-500 bg-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.8)] scale-90"
+                    : "w-6 h-6 border-cyan-400/60 bg-cyan-950/20 shadow-[0_0_6px_rgba(0,240,255,0.35)]"
+                }`}
+              >
+                {/* Center dot */}
+                <div
+                  className={`rounded-full transition-all duration-100 ${
+                    isLockedOn
+                      ? "w-2 h-2 bg-emerald-300 shadow-[0_0_8px_#34d399]"
+                      : misfireFlash
+                      ? "w-2 h-2 bg-red-400"
+                      : "w-1.5 h-1.5 bg-cyan-300 shadow-sm shadow-cyan-400"
+                  }`}
+                />
               </div>
-              <div className="absolute -top-1 w-0.5 h-2 bg-cyan-400/60" />
-              <div className="absolute -bottom-1 w-0.5 h-2 bg-cyan-400/60" />
-              <div className="absolute -left-1 h-0.5 w-2 bg-cyan-400/60" />
-              <div className="absolute -right-1 h-0.5 w-2 bg-cyan-400/60" />
+
+              {/* 4 Fine Reticle Ticks */}
+              <div className={`absolute -top-1 w-0.5 h-1.5 transition-colors ${isLockedOn ? "bg-emerald-400" : "bg-cyan-400/70"}`} />
+              <div className={`absolute -bottom-1 w-0.5 h-1.5 transition-colors ${isLockedOn ? "bg-emerald-400" : "bg-cyan-400/70"}`} />
+              <div className={`absolute -left-1 h-0.5 w-1.5 transition-colors ${isLockedOn ? "bg-emerald-400" : "bg-cyan-400/70"}`} />
+              <div className={`absolute -right-1 h-0.5 w-1.5 transition-colors ${isLockedOn ? "bg-emerald-400" : "bg-cyan-400/70"}`} />
+
+              {/* Lock-on Badge */}
+              {isLockedOn && (
+                <div className="absolute -top-6 px-1.5 py-0.5 rounded-full bg-black/85 border border-emerald-400/70 text-[9px] font-black tracking-widest text-emerald-300 shadow-lg animate-pulse whitespace-nowrap">
+                  LOCKED · TAP!
+                </div>
+              )}
+
+              {/* Misfire Badge */}
+              {misfireFlash && (
+                <div className="absolute -top-6 px-1.5 py-0.5 rounded-full bg-black/85 border border-red-500/70 text-[9px] font-black tracking-widest text-red-400 shadow-lg whitespace-nowrap">
+                  NO TARGET
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Mobile Tap Cue */}
-          <div className="absolute inset-x-0 bottom-24 z-10 flex justify-center pointer-events-none opacity-40">
-            <span className="text-[11px] font-bold text-cyan-300 px-3 py-1 rounded-full bg-black/50 border border-cyan-500/30">
-              ⚡ Tap or Click incoming cubes to burst them!
+          {/* Bottom Tap Cue */}
+          <div className="absolute inset-x-0 bottom-4 z-10 flex justify-center pointer-events-none opacity-40">
+            <span className="text-[10px] font-bold text-cyan-300 px-3 py-1 rounded-full bg-black/60 border border-cyan-500/30">
+              ⚡ Aim crosshair at cubes & tap screen to burst
             </span>
           </div>
         </>
       )}
 
-      {/* ── Top HUD Bar ── */}
-      <div className="relative z-10 flex items-center justify-between px-4 pt-safe-top py-3 bg-gradient-to-b from-black/90 to-transparent">
-        {/* Left: Close + Title */}
-        <div className="flex items-center space-x-3">
+      {/* ── Top Bar (Mobile-Optimized Sleek Header) ── */}
+      <div className="relative z-10 flex items-center justify-between px-3 pt-safe-top py-2 bg-gradient-to-b from-black/95 via-black/75 to-transparent">
+        {/* Left: Close + Song Title */}
+        <div className="flex items-center space-x-2">
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/15 hover:bg-white/20 transition-all active:scale-95 cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/15 hover:bg-white/20 active:scale-95 cursor-pointer text-white"
             aria-label="Close Beat Burst"
           >
-            <X className="w-4 h-4 text-white" />
+            <X className="w-4 h-4" />
           </button>
-          <div>
-            <div className="flex items-center space-x-1.5">
-              <Sparkles className="w-4 h-4 text-[#00f0ff]" />
-              <span className="text-white font-black text-sm tracking-widest uppercase">Beat Burst VR</span>
+          {currentTrack && (
+            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 max-w-[130px] sm:max-w-[200px]">
+              <Sparkles className="w-3 h-3 text-[#00f0ff] flex-shrink-0 animate-pulse" />
+              <span className="text-white/80 text-[11px] font-medium truncate">
+                {currentTrack.title}
+              </span>
             </div>
-            {currentTrack && (
-              <p className="text-white/50 text-[10px] truncate max-w-[120px] sm:max-w-[200px]">
-                {currentTrack.title} · {currentTrack.artist}
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Right: Controls + Camera toggle + Recenter + Difficulty badge */}
-        <div className="flex items-center space-x-2">
+        {/* Right: Camera VR toggle + Recenter + Help */}
+        <div className="flex items-center space-x-1.5">
           {gameStarted && (
             <>
-              {/* VR Gyro / Steady Camera Toggle */}
               <button
                 onClick={() => {
                   setIsGyroEnabled((prev) => !prev);
                   showToast(!isGyroEnabled ? "360° VR Gyro Look ON" : "Steady camera locked", "info");
                 }}
-                title="Toggle 360 VR Gyro vs Steady Camera"
-                className={`px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+                className={`px-2.5 py-1 rounded-full border text-[10px] font-black transition-all flex items-center space-x-1 cursor-pointer ${
                   isGyroEnabled
                     ? "bg-cyan-500/30 border-cyan-400 text-cyan-200"
-                    : "bg-white/10 border-white/15 text-white/60 hover:text-white"
+                    : "bg-white/10 border-white/15 text-white/60"
                 }`}
               >
                 <Smartphone className="w-3 h-3" />
                 <span>{isGyroEnabled ? "VR 360°" : "Steady"}</span>
               </button>
 
-              {/* Recenter button */}
               {isGyroEnabled && (
                 <button
                   onClick={handleRecenter}
-                  title="Recenter VR Camera"
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/80 active:scale-90 cursor-pointer"
+                  title="Recenter Camera"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3 h-3" />
                 </button>
               )}
             </>
           )}
 
-          {/* Controls button */}
           <button
             onClick={() => setShowControlsModal(true)}
-            title="Controls & How to Play"
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90 cursor-pointer"
+            className="w-7 h-7 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/80 active:scale-90 cursor-pointer"
+            title="Controls & Rules"
           >
             <HelpCircle className="w-3.5 h-3.5" />
           </button>
-
-          {gameStarted && (
-            <div className={`px-2.5 py-1 rounded-full border ${diff.ring} bg-black/60 backdrop-blur-md`}>
-              <span className={`text-[10px] font-black ${diff.color} uppercase tracking-wider`}>
-                {diff.label}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* ── Score HUD (In-Game Mode) ── */}
+      {/* ── Compact Cyber Score Capsule (Phone First HUD) ── */}
       {gameStarted && (
-        <div className="relative z-10 flex items-start justify-between px-4 pointer-events-none">
-          {/* Left score panel */}
-          <div className="bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 p-3 min-w-[100px]">
-            <div className="flex items-center space-x-1.5 mb-0.5">
-              <Trophy className="w-3.5 h-3.5 text-yellow-400" />
-              <span className="text-white/60 text-[10px] font-bold uppercase tracking-wider">Score</span>
-            </div>
-            <p className="text-white font-black text-xl tabular-nums leading-tight">
-              {score.score.toLocaleString()}
-            </p>
-          </div>
-
-          {/* Center: Combo + Multiplier */}
-          <div className="flex flex-col items-center">
-            <div className="bg-black/70 backdrop-blur-md rounded-2xl border border-cyan-400/20 px-4 py-2 text-center">
-              <p className="text-cyan-300/70 text-[9px] font-bold uppercase tracking-widest">Combo</p>
-              <p className={`font-black text-2xl leading-none tabular-nums ${
-                score.combo > 40 ? "text-yellow-300" : score.combo > 15 ? "text-cyan-400" : "text-white"
-              }`}>
-                {score.combo}x
+        <div className="relative z-10 px-3 mt-1 pointer-events-none">
+          <div className="flex items-center justify-between px-3.5 py-1.5 bg-black/75 backdrop-blur-xl rounded-2xl border border-cyan-500/25 max-w-sm mx-auto shadow-xl shadow-cyan-950/40">
+            {/* Live Glowing Score */}
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-white/50 leading-none">Score</p>
+              <p className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-pink-300 tabular-nums leading-tight">
+                {score.score.toLocaleString()}
               </p>
             </div>
-            {score.multiplier > 1 && (
-              <div className="mt-1 flex items-center space-x-1 bg-cyan-600/80 rounded-full px-2 py-0.5 shadow-sm shadow-cyan-500">
-                <Zap className="w-3 h-3 text-white" />
-                <span className="text-white font-black text-xs">×{score.multiplier}</span>
-              </div>
-            )}
-          </div>
 
-          {/* Right: accuracy + misses */}
-          <div className="bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 p-3 min-w-[90px] text-right">
-            <div className="flex items-center justify-end space-x-1.5 mb-0.5">
-              <span className="text-white/60 text-[10px] font-bold uppercase tracking-wider">Acc</span>
-              <Target className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
-            <p className={`font-black text-xl tabular-nums leading-tight ${
-              score.accuracy >= 90 ? "text-emerald-400" : score.accuracy >= 70 ? "text-yellow-400" : "text-red-400"
-            }`}>
-              {score.accuracy.toFixed(0)}%
-            </p>
-            {score.misses > 0 && (
-              <div className="flex items-center justify-end space-x-1 mt-1">
-                <Heart className="w-3 h-3 text-red-400" />
-                <span className="text-red-400 text-[10px] font-bold">{score.misses} miss</span>
+            {/* Combo Streak & Multiplier */}
+            <div className="flex items-center space-x-1.5">
+              <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                <Flame className={`w-3.5 h-3.5 ${score.combo >= 20 ? "text-amber-400 animate-bounce" : "text-cyan-400"}`} />
+                <span className={`text-xs font-black tracking-wider tabular-nums ${
+                  score.combo >= 40 ? "text-amber-300" : score.combo >= 15 ? "text-cyan-300" : "text-white"
+                }`}>
+                  {score.combo}x
+                </span>
               </div>
-            )}
+              {score.multiplier > 1 && (
+                <span className="text-[10px] font-black text-white px-1.5 py-0.5 rounded-full bg-cyan-500/80 shadow-sm shadow-cyan-400">
+                  ×{score.multiplier}
+                </span>
+              )}
+            </div>
+
+            {/* Accuracy & Misses */}
+            <div className="text-right">
+              <div className="flex items-center justify-end space-x-1">
+                <Target className="w-3 h-3 text-emerald-400" />
+                <span className={`text-xs font-black tabular-nums ${
+                  score.accuracy >= 90 ? "text-emerald-400" : score.accuracy >= 70 ? "text-amber-400" : "text-red-400"
+                }`}>
+                  {score.accuracy.toFixed(0)}%
+                </span>
+              </div>
+              <p className="text-[9px] font-bold text-white/40 leading-none">
+                {score.misses > 0 ? `${score.misses} miss` : "PERFECT"}
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── Pre-Game Screen ── */}
-      {!gameStarted && (
+      {!gameStarted && !isGameOver && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-start overflow-y-auto px-4 py-3 space-y-4 max-w-lg mx-auto w-full">
-
           {/* Hero Icon */}
           <div className="relative pt-2">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-pink-600 flex items-center justify-center shadow-2xl shadow-cyan-900/50">
-              <Sparkles className="w-10 h-10 text-white" strokeWidth={1.75} />
+            <div className="w-18 h-18 rounded-2xl bg-gradient-to-br from-cyan-500 to-pink-600 flex items-center justify-center shadow-2xl shadow-cyan-900/50">
+              <Sparkles className="w-9 h-9 text-white" strokeWidth={1.75} />
             </div>
-            <div className="absolute -inset-1.5 rounded-[1.5rem] border-2 border-cyan-400/40 animate-pulse" />
+            <div className="absolute -inset-1.5 rounded-[1.4rem] border-2 border-cyan-400/40 animate-pulse" />
           </div>
 
           <div className="text-center space-y-1">
             <h1 className="text-white font-black text-2xl tracking-tight">Beat Burst 3D VR</h1>
             <p className="text-white/60 text-xs max-w-xs leading-relaxed mx-auto">
-              Tap or click glowing crystal cubes to burst them to the song&apos;s beat! Move your phone to look around in 360° VR.
+              Aim your crosshair at cubes & tap to burst them on the song&apos;s real beat! Move your phone in 360° VR.
             </p>
           </div>
 
@@ -373,41 +485,33 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
           ) : (
             <div className="w-full bg-white/5 rounded-2xl border border-white/10 p-3.5 flex items-center space-x-3">
               <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
-              <p className="text-white/60 text-xs">Play a song first from search or library to start bursting!</p>
+              <p className="text-white/60 text-xs">Play a song first to start bursting cubes to the beat!</p>
             </div>
           )}
 
-          {/* Cube Types & Mechanics Card */}
-          <div className="w-full bg-white/[0.04] rounded-2xl border border-white/10 p-4 space-y-3">
+          {/* Rules & Aim Mechanic Card */}
+          <div className="w-full bg-white/[0.04] rounded-2xl border border-white/10 p-3.5 space-y-2.5">
             <span className="text-white font-black text-xs uppercase tracking-wider flex items-center space-x-1.5">
-              <Flame className="w-4 h-4 text-cyan-400" />
-              <span>Cubes & Rewards</span>
+              <Target className="w-4 h-4 text-cyan-400" />
+              <span>How To Play</span>
             </span>
 
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl bg-cyan-950/40 border border-cyan-400/30 p-2 space-y-0.5">
-                <span className="text-base">💎</span>
-                <p className="text-cyan-300 font-bold text-[11px]">Cyan / Pink</p>
-                <p className="text-white/50 text-[10px]">+100 Pts</p>
+                <span className="text-sm">🎯</span>
+                <p className="text-cyan-300 font-bold text-[10px]">1. Aim</p>
+                <p className="text-white/50 text-[9px]">Align reticle</p>
               </div>
               <div className="rounded-xl bg-amber-950/40 border border-amber-400/30 p-2 space-y-0.5">
-                <span className="text-base">🌟</span>
-                <p className="text-amber-300 font-bold text-[11px]">Gold Star</p>
-                <p className="text-white/50 text-[10px]">+300 Pts</p>
+                <span className="text-sm">🟢</span>
+                <p className="text-amber-300 font-bold text-[10px]">2. Lock-On</p>
+                <p className="text-white/50 text-[9px]">Reticle turns green</p>
               </div>
-              <div className="rounded-xl bg-red-950/40 border border-red-500/30 p-2 space-y-0.5">
-                <span className="text-base">⚠️</span>
-                <p className="text-red-300 font-bold text-[11px]">Hazard</p>
-                <p className="text-white/50 text-[10px]">Don&apos;t Tap!</p>
+              <div className="rounded-xl bg-pink-950/40 border border-pink-400/30 p-2 space-y-0.5">
+                <span className="text-sm">💥</span>
+                <p className="text-pink-300 font-bold text-[10px]">3. Tap</p>
+                <p className="text-white/50 text-[9px]">Shatter on beat!</p>
               </div>
-            </div>
-
-            {/* VR feature note */}
-            <div className="rounded-xl bg-indigo-950/30 border border-indigo-400/20 p-2.5 flex items-start space-x-2 text-left">
-              <Smartphone className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
-              <p className="text-indigo-200 text-[11px] leading-relaxed">
-                <strong className="text-white">360° VR Motion:</strong> Move your phone around in your hands to look anywhere in 3D! Tap incoming cubes on screen to burst them into neon crystal shards!
-              </p>
             </div>
           </div>
 
@@ -421,13 +525,13 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
                   <button
                     key={d}
                     onClick={() => setDifficulty(d)}
-                    className={`py-2 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer border ${
+                    className={`py-2 px-1 rounded-xl border text-center transition-all cursor-pointer ${
                       difficulty === d
-                        ? `${dl.ring} bg-white/10 ${dl.color}`
-                        : "border-white/10 text-white/40 hover:text-white/70 hover:border-white/20"
+                        ? `${dl.ring} bg-white/10 font-black shadow-md`
+                        : "border-white/10 text-white/50 hover:text-white hover:border-white/20"
                     }`}
                   >
-                    {dl.label}
+                    <span className={`text-[11px] font-bold ${dl.color}`}>{dl.label}</span>
                   </button>
                 );
               })}
@@ -438,121 +542,139 @@ export default function BeatSaberModal({ isOpen, onClose }: BeatSaberModalProps)
           <button
             onClick={handleStartGame}
             disabled={!currentTrack}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-pink-600 hover:from-cyan-400 hover:to-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-base tracking-wide transition-all active:scale-[0.98] shadow-2xl shadow-cyan-900/50 cursor-pointer flex items-center justify-center space-x-2"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#00f0ff] to-[#ff007f] hover:opacity-90 font-black text-white text-base shadow-lg shadow-cyan-500/25 active:scale-98 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-30 disabled:pointer-events-none mt-2"
           >
-            <Sparkles className="w-5 h-5" />
-            <span>Start Bursting in 3D VR</span>
+            <Play className="w-5 h-5 fill-white" />
+            <span>START BEAT BURST</span>
           </button>
         </div>
       )}
 
-      {/* ── Bottom Controls (In-Game Mode) ── */}
-      {gameStarted && (
-        <div className="relative z-10 mt-auto bg-gradient-to-t from-black/90 to-transparent pt-6 pb-safe-bottom pb-3 px-4">
-          <div className="flex items-center justify-between max-w-sm mx-auto">
-            {/* Track info */}
-            <div className="flex-1 min-w-0 mr-3">
-              <p className="text-white text-xs font-bold truncate">
-                {currentTrack?.title ?? "—"}
+      {/* ── Game Over / Results Screen (Triggered When Song Ends) ── */}
+      {isGameOver && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-full max-w-sm bg-gradient-to-b from-[#0c1222] to-[#04060c] rounded-3xl border border-cyan-500/30 p-5 shadow-2xl shadow-cyan-950/80 text-center space-y-4">
+            {/* Header */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400 bg-cyan-950/60 px-3 py-1 rounded-full border border-cyan-400/30">
+                Song Completed!
+              </span>
+              <h2 className="text-xl font-black text-white tracking-tight mt-2">
+                {score.accuracy >= 90 ? "Spectacular Performance!" : "Stage Cleared!"}
+              </h2>
+              <p className="text-white/50 text-[11px] truncate max-w-[220px] mx-auto">
+                {currentTrack?.title} · {currentTrack?.artist}
               </p>
-              <p className="text-white/40 text-[10px] truncate">{currentTrack?.artist ?? "—"}</p>
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center space-x-2 flex-shrink-0">
+            {/* Rank Badge */}
+            <div className="relative inline-flex items-center justify-center my-1">
+              <div className={`w-18 h-18 rounded-2xl flex flex-col items-center justify-center font-black ${rankInfo.bg} ${rankInfo.border} border-2 shadow-xl`}>
+                <span className={`text-4xl leading-none ${rankInfo.color}`}>{rankInfo.rank}</span>
+                <span className={`text-[8px] tracking-widest uppercase mt-0.5 ${rankInfo.color}`}>{rankInfo.label}</span>
+              </div>
+              {isNewHighScore && (
+                <div className="absolute -top-2.5 -right-3 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-md animate-bounce">
+                  NEW RECORD!
+                </div>
+              )}
+            </div>
+
+            {/* Final Score */}
+            <div className="bg-white/5 rounded-2xl p-3 border border-white/10">
+              <p className="text-white/40 text-[9px] font-bold uppercase tracking-wider">Final Score</p>
+              <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-pink-300 tabular-nums">
+                {score.score.toLocaleString()}
+              </p>
+              {highScore > 0 && (
+                <p className="text-white/40 text-[10px] mt-0.5">
+                  Best ({difficulty}): {highScore.toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            {/* Stats Breakdown Grid */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                <p className="text-white/40 text-[9px] font-bold uppercase">Max Streak</p>
+                <p className="text-sm font-black text-amber-300 tabular-nums">{maxCombo}x</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                <p className="text-white/40 text-[9px] font-bold uppercase">Accuracy</p>
+                <p className="text-sm font-black text-emerald-400 tabular-nums">{score.accuracy.toFixed(0)}%</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                <p className="text-white/40 text-[9px] font-bold uppercase">Hits / Miss</p>
+                <p className="text-sm font-black text-white tabular-nums">{score.hits}/{score.misses}</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
               <button
-                onClick={prevTrack}
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10 hover:bg-white/20 transition-all active:scale-90 cursor-pointer"
-                aria-label="Previous track"
+                onClick={handleRestart}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 font-black text-white text-xs shadow-lg shadow-cyan-500/30 active:scale-95 transition-all flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <SkipBack className="w-3.5 h-3.5 text-white" />
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Play Again</span>
               </button>
+
               <button
-                onClick={togglePlay}
-                className="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center shadow-lg shadow-cyan-900/50 hover:bg-cyan-400 transition-all active:scale-95 cursor-pointer"
-                aria-label={isPlaying ? "Pause" : "Play"}
+                onClick={onClose}
+                className="w-full py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white/70 hover:text-white font-bold text-xs active:scale-95 transition-all cursor-pointer"
               >
-                {isPlaying ? (
-                  <Pause className="w-4 h-4 text-black fill-black" />
-                ) : (
-                  <Play className="w-4 h-4 text-black fill-black ml-0.5" />
-                )}
-              </button>
-              <button
-                onClick={nextTrack}
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10 hover:bg-white/20 transition-all active:scale-90 cursor-pointer"
-                aria-label="Next track"
-              >
-                <SkipForward className="w-3.5 h-3.5 text-white" />
-              </button>
-              <button
-                onClick={() => {
-                  setGameStarted(false);
-                  setScore({ score: 0, combo: 0, multiplier: 1, misses: 0, accuracy: 100 });
-                }}
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10 hover:bg-white/20 transition-all active:scale-90 cursor-pointer"
-                aria-label="Restart"
-              >
-                <Trophy className="w-3.5 h-3.5 text-yellow-400" />
+                Exit to Player
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── CONTROLS MODAL OVERLAY ── */}
+      {/* ── Controls Help Modal ── */}
       {showControlsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="bg-[#080d1a] border border-cyan-400/30 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl relative">
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-[#090d19] rounded-3xl border border-cyan-500/30 p-5 space-y-4 text-white">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-cyan-400" />
-                <h3 className="text-white font-black text-base">Beat Burst Controls</h3>
-              </div>
+              <h3 className="font-black text-base flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>Controls & Aiming</span>
+              </h3>
               <button
                 onClick={() => setShowControlsModal(false)}
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 text-white"
+                className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="bg-white/5 rounded-2xl p-3 space-y-1.5 border border-white/10">
-                <p className="text-white font-black text-xs flex items-center space-x-1.5">
-                  <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>On Mobile / Phone</span>
+            <div className="space-y-2.5 text-xs text-white/80 leading-relaxed">
+              <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
+                <p className="font-bold text-cyan-300 mb-0.5">🎯 1. Center Crosshair Aiming</p>
+                <p className="text-[11px] text-white/60">
+                  Move your phone (or drag on PC) to align the center crosshair onto incoming cubes. When locked on, the reticle turns green!
                 </p>
-                <ul className="text-white/70 space-y-1 list-disc list-inside">
-                  <li><strong className="text-white">Move Phone:</strong> Tilt & turn to look left/right/up/down in 360° VR.</li>
-                  <li><strong className="text-cyan-300">Tap Any Cube:</strong> Tap directly on incoming crystal cubes to shatter them!</li>
-                  <li><strong className="text-yellow-400">Recenter View (🔄):</strong> Tap button in top bar to align camera forward.</li>
-                </ul>
               </div>
 
-              <div className="bg-white/5 rounded-2xl p-3 space-y-1.5 border border-white/10">
-                <p className="text-white font-black text-xs flex items-center space-x-1.5">
-                  <MousePointer className="w-3.5 h-3.5 text-pink-400" />
-                  <span>On Laptop / Computer</span>
+              <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
+                <p className="font-bold text-pink-300 mb-0.5">⚡ 2. Tap to Burst</p>
+                <p className="text-[11px] text-white/60">
+                  Tap anywhere on the screen when locked on to shatter the cube on the beat! Tapping off-target will not burst cubes.
                 </p>
-                <ul className="text-white/70 space-y-1 list-disc list-inside">
-                  <li><strong className="text-white">Click Cubes:</strong> Click any cube to burst it into shards.</li>
-                  <li><strong className="text-white">Drag Mouse:</strong> Look around the 3D cyberpunk arena.</li>
-                </ul>
               </div>
 
-              <div className="bg-white/5 rounded-2xl p-3 space-y-1 border border-white/10 text-white/70">
-                <p className="text-white font-bold text-xs">🎯 Objectives</p>
-                <p>• Burst cubes before they fly past you!</p>
-                <p>• Avoid ⚠️ Hazard Orbs — clicking them breaks your combo!</p>
+              <div className="bg-white/5 rounded-xl p-2.5 border border-white/10">
+                <p className="font-bold text-emerald-300 mb-0.5">🎵 3. Song Beat Synchronization</p>
+                <p className="text-[11px] text-white/60">
+                  Cubes travel and arrive at the hit line exactly on the musical beat. When the song ends, the stage clears and final score is shown!
+                </p>
               </div>
             </div>
 
             <button
               onClick={() => setShowControlsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-pink-600 hover:from-cyan-400 hover:to-pink-500 text-white font-bold text-xs uppercase tracking-wider transition-all"
+              className="w-full py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold text-xs hover:bg-cyan-500/30 transition-all"
             >
-              Ready to Burst!
+              Got it!
             </button>
           </div>
         </div>

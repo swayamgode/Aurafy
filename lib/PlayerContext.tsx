@@ -39,6 +39,7 @@ interface PlayerContextType {
   // Actions
   playTrack: (track: Track, newQueue?: Track[]) => void;
   togglePlay: () => void;
+  pauseTrack: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
   seekTo: (seconds: number) => void;
@@ -235,6 +236,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         } else {
           setProgress((prev) => {
             if (duration > 10 && prev >= duration) {
+              if (isBeatSaberOpen) {
+                window.dispatchEvent(new CustomEvent("aurafy-song-ended"));
+                setIsPlaying(false);
+                return duration;
+              }
               nextTrack();
               return 0;
             }
@@ -526,6 +532,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         downloadingIds,
         playTrack,
         togglePlay,
+        pauseTrack: () => setIsPlaying(false),
         nextTrack,
         prevTrack,
         seekTo,

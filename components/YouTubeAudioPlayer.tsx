@@ -12,6 +12,7 @@ declare global {
     _aurafyPause: () => void;
     _aurafySeek: (seconds: number) => void;
     _aurafyGetTime: () => number;
+    _aurafyGetAudioElement: () => HTMLAudioElement | null;
   }
 }
 
@@ -26,6 +27,7 @@ export default function YouTubeAudioPlayer() {
     volume,
     isMuted,
     nextTrack,
+    pauseTrack,
     setYouTubePlayer,
     isBeatSaberOpen,
   } = usePlayer();
@@ -140,6 +142,10 @@ export default function YouTubeAudioPlayer() {
         return 0;
       }
     };
+
+    window._aurafyGetAudioElement = () => {
+      return audioRef.current;
+    };
   }, [acquireWakeLock, releaseWakeLock]);
 
   // ── YouTube IFrame fallback player init ──────────────────────────────────────
@@ -182,8 +188,13 @@ export default function YouTubeAudioPlayer() {
               } catch (_) {}
             },
             onStateChange: (event: any) => {
-              if (event.data === 0 && isFallbackToIframe.current) {
-                nextTrack();
+              if (event.data === 0) {
+                window.dispatchEvent(new CustomEvent("aurafy-song-ended"));
+                if (isBeatSaberOpen) {
+                  pauseTrack();
+                } else if (isFallbackToIframe.current) {
+                  nextTrack();
+                }
               }
             },
             onError: (event: any) => {
@@ -382,12 +393,9 @@ export default function YouTubeAudioPlayer() {
         playsInline
         preload="auto"
         onEnded={() => {
+          window.dispatchEvent(new CustomEvent("aurafy-song-ended"));
           if (isBeatSaberOpen) {
-            // Replay immediately during Beat Saber
-            if (audioRef.current) {
-              audioRef.current.currentTime = 0;
-              audioRef.current.play().catch(() => {});
-            }
+            pauseTrack();
           } else {
             nextTrack();
           }

@@ -12,6 +12,7 @@ export interface ScoreUpdate {
   multiplier: number;
   misses: number;
   accuracy: number;
+  hits: number;
 }
 
 interface BeatSaberGameProps {
@@ -20,24 +21,26 @@ interface BeatSaberGameProps {
   onScoreUpdate: (update: ScoreUpdate) => void;
   onBlockHit: (isSpecial: boolean, intensity: number) => void;
   onMiss: () => void;
+  onTargetLock?: (isLocked: boolean, cubeType: "pink" | "cyan" | "gold" | "hazard" | null) => void;
+  onMisfire?: () => void;
   bpm?: number;
   recenterTrigger?: number;
   isGyroEnabled?: boolean;
   onGyroActive?: (active: boolean) => void;
 }
 
-// ─── Sound FX Synthesizer (Zero dependencies, instant arcade pops) ────────────
-function playBurstSfx(pitch = 560, isHazard = false) {
+// ─── Sound FX Synthesizer (Instant arcade pops & crystal explosions) ─────────
+function playBurstSfx(pitch = 560, isHazardOrMisfire = false) {
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = isHazard ? "sawtooth" : "triangle";
-    osc.frequency.setValueAtTime(isHazard ? 140 : pitch, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(isHazard ? 60 : pitch * 1.8, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.22, ctx.currentTime);
+    osc.type = isHazardOrMisfire ? "sawtooth" : "triangle";
+    osc.frequency.setValueAtTime(isHazardOrMisfire ? 150 : pitch, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(isHazardOrMisfire ? 55 : pitch * 1.8, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -51,13 +54,13 @@ const LANE_X = [-1.5, -0.5, 0.5, 1.5];
 const SPAWN_Z = -36;
 const MISS_Z = 2.8;
 const BLOCK_SZ = 0.52;
+const LOCK_ON_RADIUS = 0.72; // Tight radius matching smaller crosshair
 
 interface CubeItem {
   group: THREE.Group;
   outerMesh: THREE.Mesh;
   innerCore: THREE.Mesh;
   ring: THREE.Mesh;
-  pointLight?: THREE.PointLight;
   type: "pink" | "cyan" | "gold" | "hazard";
   lane: number;
   hit: boolean;
@@ -86,6 +89,8 @@ export default function BeatSaberGame({
   onScoreUpdate,
   onBlockHit,
   onMiss,
+  onTargetLock,
+  onMisfire,
   bpm = 128,
   recenterTrigger = 0,
   isGyroEnabled = true,
@@ -114,41 +119,82 @@ export default function BeatSaberGame({
   const eqBarsRef = useRef<THREE.Mesh[]>([]);
   const searchlightsRef = useRef<THREE.SpotLight[]>([]);
 
+  // Currently locked target cube
+  const lockedCubeRef = useRef<CubeItem | null>(null);
+  const prevLockStateRef = useRef<{ isLocked: boolean; type: string | null }>({ isLocked: false, type: null });
+
   // Score
   const scoreRef = useRef({ score: 0, combo: 0, multiplier: 1, misses: 0, hits: 0 });
 
-  // Rhythm Spawning
-  const lastSpawnRef = useRef(0);
-  const beatTimerRef = useRef(0);
+  // Song Beat Synchronizer
+  const lastSpawnedBeatRef = useRef(-1);
 
-  // Trigger recenter on prop change
+  // Recenter trigger
   useEffect(() => {
     needsRecenter.current = true;
     mouseDragRef.current.yaw = 0;
     mouseDragRef.current.pitch = 0;
   }, [recenterTrigger]);
 
-  const getDiffCfg = useCallback(() => {
+  // ── Rhythm & Beat Configuration ───────────────────────────────────────────
+  const getBeatConfig = useCallback(() => {
+    const songBpm = bpm || 128;
+    const beatDuration = 60 / songBpm;
+
     switch (difficulty) {
-      case "easy":   return { speed: 8,  interval: 1.2,  hazardChance: 0.05, goldChance: 0.15 };
-      case "normal": return { speed: 11, interval: 0.85, hazardChance: 0.08, goldChance: 0.20 };
-      case "hard":   return { speed: 15, interval: 0.55, hazardChance: 0.12, goldChance: 0.25 };
-      case "expert": return { speed: 20, interval: 0.38, hazardChance: 0.15, goldChance: 0.30 };
+      case "easy":
+        return {
+          beatDuration,
+          spawnBeatStep: 2, // Spawn every 2 beats (half notes)
+          travelBeats: 6,   // Takes exactly 6 beats to travel from SPAWN_Z to 0
+          speed: Math.abs(SPAWN_Z) / (6 * beatDuration),
+          hazardChance: 0.04,
+          goldChance: 0.16,
+        };
+      case "normal":
+        return {
+          beatDuration,
+          spawnBeatStep: 1, // Spawn every 1 beat (quarter notes)
+          travelBeats: 4,   // Takes exactly 4 beats to travel to 0
+          speed: Math.abs(SPAWN_Z) / (4 * beatDuration),
+          hazardChance: 0.08,
+          goldChance: 0.20,
+        };
+      case "hard":
+        return {
+          beatDuration,
+          spawnBeatStep: 1, // Spawn every 1 beat, with syncopated doubles
+          travelBeats: 3,   // Fast 3-beat travel
+          speed: Math.abs(SPAWN_Z) / (3 * beatDuration),
+          hazardChance: 0.12,
+          goldChance: 0.24,
+        };
+      case "expert":
+        return {
+          beatDuration,
+          spawnBeatStep: 0.5, // Spawn every 8th note!
+          travelBeats: 2.5,   // Intense 2.5-beat rush
+          speed: Math.abs(SPAWN_Z) / (2.5 * beatDuration),
+          hazardChance: 0.15,
+          goldChance: 0.28,
+        };
     }
-  }, [difficulty]);
+  }, [bpm, difficulty]);
 
   // ── Score Helpers ─────────────────────────────────────────────────────────
   const registerHit = (type: CubeItem["type"]) => {
     const s = scoreRef.current;
     if (type === "hazard") {
-      // Penalty for hazard orb
       s.combo = 0;
       s.multiplier = 1;
       s.misses++;
-      playBurstSfx(120, true);
+      playBurstSfx(130, true);
       try { navigator.vibrate?.([60, 40, 60]); } catch (_) {}
       onMiss();
-      onScoreUpdate({ ...s, accuracy: s.hits > 0 ? (s.hits / (s.hits + s.misses)) * 100 : 0 });
+      onScoreUpdate({
+        ...s,
+        accuracy: s.hits > 0 ? (s.hits / (s.hits + s.misses)) * 100 : 0,
+      });
       return;
     }
 
@@ -157,10 +203,13 @@ export default function BeatSaberGame({
     const basePts = type === "gold" ? 300 : 100;
     s.score += basePts * s.multiplier;
     s.hits++;
-    playBurstSfx(type === "gold" ? 780 : type === "pink" ? 640 : 520, false);
+    playBurstSfx(type === "gold" ? 820 : type === "pink" ? 640 : 520, false);
     try { navigator.vibrate?.(type === "gold" ? [40, 20, 40] : 30); } catch (_) {}
     onBlockHit(type === "gold", 1.0);
-    onScoreUpdate({ ...s, accuracy: (s.hits / (s.hits + s.misses)) * 100 });
+    onScoreUpdate({
+      ...s,
+      accuracy: (s.hits / (s.hits + s.misses)) * 100,
+    });
   };
 
   const registerMiss = () => {
@@ -169,7 +218,10 @@ export default function BeatSaberGame({
     s.multiplier = 1;
     s.misses++;
     onMiss();
-    onScoreUpdate({ ...s, accuracy: s.hits > 0 ? (s.hits / (s.hits + s.misses)) * 100 : 0 });
+    onScoreUpdate({
+      ...s,
+      accuracy: s.hits > 0 ? (s.hits / (s.hits + s.misses)) * 100 : 0,
+    });
   };
 
   // ── Burst / Shatter Explosion Effect ──────────────────────────────────────
@@ -238,65 +290,36 @@ export default function BeatSaberGame({
     }, 120);
   };
 
-  // ── Tap / Click Raycasting to Burst Cubes ──────────────────────────────────
-  const handleBurstAtScreenCoord = useCallback(
-    (clientX: number, clientY: number) => {
-      const container = containerRef.current;
-      const camera = cameraRef.current;
-      const scene = sceneRef.current;
-      if (!container || !camera || !scene) return;
+  // ── STRICT CROSSHAIR SHOOTING MECHANIC ────────────────────────────────────
+  // The player CANNOT tap cubes off-screen or off-center.
+  // The shot is ALWAYS cast strictly through the center crosshair (0, 0).
+  // Only if an incoming cube aligns with the crosshair does it burst!
+  const triggerShootFromCrosshair = useCallback(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
 
-      const rect = container.getBoundingClientRect();
-      const mouseX = ((clientX - rect.left) / rect.width) * 2 - 1;
-      const mouseY = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
-
-      // Check direct mesh raycasting
-      const activeCubes = cubesRef.current.filter((c) => !c.hit && !c.missed);
-      const meshesToTest = activeCubes.map((c) => c.outerMesh);
-      const intersects = raycaster.intersectObjects(meshesToTest, false);
-
-      let targetCube: CubeItem | null = null;
-
-      if (intersects.length > 0) {
-        const hitMesh = intersects[0].object;
-        targetCube = activeCubes.find((c) => c.outerMesh === hitMesh) || null;
-      }
-
-      // Proximity assist (if tapped near an incoming cube or center tap)
-      if (!targetCube) {
-        const ray = raycaster.ray;
-        let closestDist = 1.35; // generous hit radius
-        activeCubes.forEach((c) => {
-          if (c.group.position.z > -16 && c.group.position.z < 2.5) {
-            const dist = ray.distanceToPoint(c.group.position);
-            if (dist < closestDist) {
-              closestDist = dist;
-              targetCube = c;
-            }
-          }
-        });
-      }
-
-      if (targetCube) {
-        const c = targetCube as CubeItem;
-        c.hit = true;
-        scene.remove(c.group);
-        spawnBurstEffect(scene, c.group.position, c.type);
-        registerHit(c.type);
-      }
-    },
+    const target = lockedCubeRef.current;
+    if (target && !target.hit && !target.missed) {
+      // Direct Hit on aligned target!
+      target.hit = true;
+      scene.remove(target.group);
+      spawnBurstEffect(scene, target.group.position, target.type);
+      registerHit(target.type);
+      lockedCubeRef.current = null;
+      if (onTargetLock) onTargetLock(false, null);
+    } else {
+      // Empty Shot / Misfire (Crosshair was not pointing at any cube)
+      playBurstSfx(180, true);
+      onMisfire?.();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  }, [onMisfire, onTargetLock]);
 
   // ── Spawn Futuristic Crystal Cube ─────────────────────────────────────────
   const spawnCube = useCallback(
-    (scene: THREE.Scene) => {
-      const cfg = getDiffCfg();
-      const lane = Math.floor(Math.random() * LANE_X.length);
+    (scene: THREE.Scene, speed: number, forceLane?: number) => {
+      const cfg = getBeatConfig();
+      const lane = forceLane !== undefined ? forceLane : Math.floor(Math.random() * LANE_X.length);
       const rand = Math.random();
 
       let type: CubeItem["type"] = "cyan";
@@ -313,7 +336,7 @@ export default function BeatSaberGame({
       const outerMat = new THREE.MeshPhysicalMaterial({
         color: colorHex,
         emissive: new THREE.Color(colorHex),
-        emissiveIntensity: 0.65,
+        emissiveIntensity: 0.7,
         roughness: 0.1,
         metalness: 0.4,
         transparent: true,
@@ -323,7 +346,7 @@ export default function BeatSaberGame({
       const outerMesh = new THREE.Mesh(outerGeo, outerMat);
       group.add(outerMesh);
 
-      // Neon Wireframe Edge Edges
+      // Neon Wireframe Edges
       const edgesGeo = new THREE.EdgesGeometry(outerGeo);
       const edgesMat = new THREE.LineBasicMaterial({
         color: 0xffffff,
@@ -358,7 +381,7 @@ export default function BeatSaberGame({
       ring.rotation.x = Math.PI / 4;
       group.add(ring);
 
-      group.position.set(LANE_X[lane], 1.2 + (Math.random() - 0.5) * 0.4, SPAWN_Z);
+      group.position.set(LANE_X[lane], 1.25 + (Math.random() - 0.5) * 0.35, SPAWN_Z);
       scene.add(group);
 
       cubesRef.current.push({
@@ -370,10 +393,10 @@ export default function BeatSaberGame({
         lane,
         hit: false,
         missed: false,
-        speed: cfg.speed,
+        speed,
       });
     },
-    [getDiffCfg]
+    [getBeatConfig]
   );
 
   // ── Three.js Scene Setup ──────────────────────────────────────────────────
@@ -386,7 +409,7 @@ export default function BeatSaberGame({
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.25;
     container.innerHTML = "";
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -398,12 +421,12 @@ export default function BeatSaberGame({
     sceneRef.current = scene;
 
     // Camera
-    const camera = new THREE.PerspectiveCamera(78, container.clientWidth / container.clientHeight, 0.1, 300);
-    camera.position.set(0, 1.5, 3.2);
+    const camera = new THREE.PerspectiveCamera(76, container.clientWidth / container.clientHeight, 0.1, 300);
+    camera.position.set(0, 1.45, 3.2);
     cameraRef.current = camera;
 
     // ── Lighting ──
-    scene.add(new THREE.AmbientLight(0x1a243b, 1.5));
+    scene.add(new THREE.AmbientLight(0x1a243b, 1.6));
     const mainLight = new THREE.DirectionalLight(0xffffff, 1.8);
     mainLight.position.set(0, 10, 5);
     scene.add(mainLight);
@@ -421,13 +444,13 @@ export default function BeatSaberGame({
     });
     searchlightsRef.current = searchlights;
 
-    // ── Infinite Reflective Cyber Track ──
+    // ── Reflective Cyber Track ──
     const trackMat = new THREE.MeshStandardMaterial({
       color: 0x050814,
       roughness: 0.15,
       metalness: 0.9,
     });
-    const track = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 80), trackMat);
+    const track = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 80), trackMat);
     track.rotation.x = -Math.PI / 2;
     track.position.set(0, 0, -28);
     scene.add(track);
@@ -438,64 +461,75 @@ export default function BeatSaberGame({
       const railMat = new THREE.MeshBasicMaterial({
         color: l === -2 || l === 2 ? 0xff007f : 0x00f0ff,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.85,
         blending: THREE.AdditiveBlending,
       });
       const rail = new THREE.Mesh(railGeo, railMat);
-      rail.position.set(l * 1.05, 0.02, -28);
+      rail.position.set(l * 1.08, 0.02, -28);
       scene.add(rail);
     }
 
     // ── Neon Hexagonal Archways Over Highway ──
     const archways: THREE.Mesh[] = [];
-    for (let a = 0; a < 6; a++) {
-      const archGeo = new THREE.TorusGeometry(3.2, 0.05, 6, 6);
+    for (let z = -32; z <= 2; z += 6) {
+      const archGeo = new THREE.TorusGeometry(3.1, 0.035, 6, 6);
       const archMat = new THREE.MeshBasicMaterial({
-        color: a % 2 === 0 ? 0x00f0ff : 0xff007f,
+        color: z % 12 === 0 ? 0xff007f : 0x00f0ff,
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.45,
         blending: THREE.AdditiveBlending,
       });
       const arch = new THREE.Mesh(archGeo, archMat);
-      arch.position.set(0, 1.8, -6 - a * 6);
+      arch.position.set(0, 1.4, z);
       scene.add(arch);
       archways.push(arch);
     }
     archwaysRef.current = archways;
 
-    // ── Equalizer Visualizer Towers Flanking Track ──
+    // ── Flanking Equalizer Visualizer Towers ──
     const eqBars: THREE.Mesh[] = [];
-    const numBars = 18;
-    for (let b = 0; b < numBars; b++) {
-      [-3.6, 3.6].forEach((sideX) => {
-        const barGeo = new THREE.BoxGeometry(0.35, 1, 0.35);
-        const barMat = new THREE.MeshStandardMaterial({
-          color: sideX < 0 ? 0xff007f : 0x00f0ff,
-          emissive: sideX < 0 ? 0x660033 : 0x003366,
-          roughness: 0.3,
-          metalness: 0.7,
-        });
-        const barMesh = new THREE.Mesh(barGeo, barMat);
-        barMesh.position.set(sideX, 0.5, -4 - b * 2);
-        scene.add(barMesh);
-        eqBars.push(barMesh);
+    const eqGeo = new THREE.BoxGeometry(0.2, 1, 0.2);
+    for (let i = 0; i < 20; i++) {
+      const zPos = -32 + i * 1.8;
+      // Left side tower
+      const matL = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0x00f0ff : 0x9d00ff,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending,
       });
+      const barL = new THREE.Mesh(eqGeo, matL);
+      barL.position.set(-3.2, 0.5, zPos);
+      scene.add(barL);
+      eqBars.push(barL);
+
+      // Right side tower
+      const matR = new THREE.MeshBasicMaterial({
+        color: i % 2 === 0 ? 0xff007f : 0x00ff88,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending,
+      });
+      const barR = new THREE.Mesh(eqGeo, matR);
+      barR.position.set(3.2, 0.5, zPos);
+      scene.add(barR);
+      eqBars.push(barR);
     }
     eqBarsRef.current = eqBars;
 
-    // ── Deep Starfield & Floating Cyber Dust ──
-    const starCount = 300;
+    // ── Ambient Starfield ──
+    const starCount = 350;
     const starGeo = new THREE.BufferGeometry();
-    const starPos = new Float32Array(starCount * 3);
-    for (let s = 0; s < starCount * 3; s += 3) {
-      starPos[s] = (Math.random() - 0.5) * 60;
-      starPos[s + 1] = Math.random() * 25 + 1;
-      starPos[s + 2] = (Math.random() - 0.5) * 80;
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+      starPositions[i] = (Math.random() - 0.5) * 60;
+      starPositions[i + 1] = Math.random() * 25 + 1;
+      starPositions[i + 2] = -Math.random() * 60;
     }
-    starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+    starGeo.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
     const starMat = new THREE.PointsMaterial({
-      color: 0x88ccff,
-      size: 0.15,
+      color: 0x00f0ff,
+      size: 0.12,
       transparent: true,
       opacity: 0.7,
       blending: THREE.AdditiveBlending,
@@ -503,7 +537,7 @@ export default function BeatSaberGame({
     const starField = new THREE.Points(starGeo, starMat);
     scene.add(starField);
 
-    // ── Mobile Device Orientation (Gyro VR) ──
+    // ── Mobile Device Orientation (Gyro VR Look) ──
     const onOrientation = (e: DeviceOrientationEvent) => {
       if (e.alpha !== null && e.beta !== null && e.gamma !== null) {
         gyroRef.current = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
@@ -515,25 +549,18 @@ export default function BeatSaberGame({
     };
     window.addEventListener("deviceorientation", onOrientation);
 
-    // ── Touch and Mouse Input Handling (Tap to Burst!) ──
+    // ── Touch and Pointer Shooting ──
+    // Any tap on the screen or mouse click fires through the CENTER CROSSHAIR.
+    // It does NOT click on cubes directly — head aiming is required!
     const dom = renderer.domElement;
 
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
-      let clientX = 0;
-      let clientY = 0;
-      if ("touches" in e) {
-        if (e.touches.length > 0) {
-          clientX = e.touches[0].clientX;
-          clientY = e.touches[0].clientY;
-        }
-      } else {
-        clientX = (e as MouseEvent).clientX;
-        clientY = (e as MouseEvent).clientY;
+      if (!("touches" in e)) {
         mouseDragRef.current.isDown = true;
-        mouseDragRef.current.startX = clientX;
-        mouseDragRef.current.startY = clientY;
+        mouseDragRef.current.startX = (e as MouseEvent).clientX;
+        mouseDragRef.current.startY = (e as MouseEvent).clientY;
       }
-      handleBurstAtScreenCoord(clientX, clientY);
+      triggerShootFromCrosshair();
     };
 
     const onPointerMove = (e: MouseEvent) => {
@@ -550,7 +577,7 @@ export default function BeatSaberGame({
       mouseDragRef.current.isDown = false;
     };
 
-    dom.addEventListener("touchstart", onPointerDown, { passive: false });
+    dom.addEventListener("touchstart", onPointerDown, { passive: true });
     dom.addEventListener("mousedown", onPointerDown);
     window.addEventListener("mousemove", onPointerMove);
     window.addEventListener("mouseup", onPointerUp);
@@ -574,22 +601,26 @@ export default function BeatSaberGame({
       lastTime = now;
       const elapsed = now / 1000;
 
-      // ── Song Beat Pulse & Frequency ──
-      const beatInterval = 60 / (bpm || 128);
-      beatTimerRef.current += dt;
-      const beatProgress = (beatTimerRef.current % beatInterval) / beatInterval;
-      const beatPulse = Math.sin(beatProgress * Math.PI) * 0.25;
+      // ── Song Time & Real Beat Phase ──
+      const realAudioTime = typeof window !== "undefined" && window._aurafyGetTime ? window._aurafyGetTime() : 0;
+      const songTime = realAudioTime > 0 ? realAudioTime : elapsed;
+      const bCfg = getBeatConfig();
+      const beatDuration = bCfg.beatDuration;
 
-      // Pulse Equalizer Towers to Beat
+      // Beat Phase: 0 to 1, with exponential kick decay
+      const beatPhase = (songTime % beatDuration) / beatDuration;
+      const beatPulse = Math.pow(Math.max(0, 1 - beatPhase), 2.5);
+
+      // Pulse Equalizer Towers to Song Beat
       eqBarsRef.current.forEach((bar, idx) => {
-        const h = Math.max(0.4, Math.sin(elapsed * 8 + idx * 0.6) * 1.8 + beatPulse * 2.2 + 0.8);
+        const h = Math.max(0.35, Math.sin(songTime * 8 + idx * 0.6) * 1.5 + beatPulse * 2.8 + 0.6);
         bar.scale.y = h;
         bar.position.y = h / 2;
       });
 
-      // Sway Searchlights to Beat
+      // Sway Searchlights to Song Rhythm
       searchlightsRef.current.forEach((sl, idx) => {
-        const sweep = Math.sin(elapsed * 2.5 + idx * 1.5) * 6;
+        const sweep = Math.sin((songTime / beatDuration) * Math.PI * 0.5 + idx * 1.5) * 6;
         sl.target.position.x = sweep;
       });
 
@@ -619,18 +650,41 @@ export default function BeatSaberGame({
         const targetQ = refQuat.current.clone().multiply(deviceQ);
         camera.quaternion.slerp(targetQ, 0.12);
       } else {
-        // Desktop mouse drag or gentle idle bob
+        // Desktop mouse drag or steady view
         const { yaw, pitch } = mouseDragRef.current;
         camera.rotation.set(pitch, yaw, 0, "YXZ");
       }
 
-      // ── Spawn Cubes in Rhythm to Beat ──
-      const cfg = getDiffCfg();
-      if (isPlaying && elapsed - lastSpawnRef.current >= cfg.interval) {
-        lastSpawnRef.current = elapsed;
-        spawnCube(scene);
-        if ((difficulty === "hard" || difficulty === "expert") && Math.random() < 0.4) {
-          spawnCube(scene);
+      // ── Song-Beat Quantized Spawning ──
+      // Spawns strictly on song beat indices so every cube lands on the hit line on a beat!
+      const beatStep = bCfg.spawnBeatStep;
+      const currentBeatIndex = Math.floor(songTime / (beatDuration * beatStep));
+
+      if (isPlaying && currentBeatIndex > lastSpawnedBeatRef.current) {
+        lastSpawnedBeatRef.current = currentBeatIndex;
+
+        let shouldSpawn = false;
+        if (difficulty === "easy") {
+          shouldSpawn = true;
+        } else if (difficulty === "normal") {
+          // 3 beats on, 1 beat phrase rest
+          shouldSpawn = currentBeatIndex % 4 !== 3;
+        } else if (difficulty === "hard") {
+          shouldSpawn = true;
+        } else if (difficulty === "expert") {
+          shouldSpawn = currentBeatIndex % 8 !== 7;
+        }
+
+        if (shouldSpawn) {
+          spawnCube(scene, bCfg.speed);
+
+          // On strong beats (bar drop), spawn dual cubes on hard/expert
+          if ((difficulty === "hard" || difficulty === "expert") && currentBeatIndex % 4 === 0) {
+            const lane1 = Math.floor(Math.random() * 2);
+            const lane2 = 2 + Math.floor(Math.random() * 2);
+            spawnCube(scene, bCfg.speed, lane1);
+            spawnCube(scene, bCfg.speed, lane2);
+          }
         }
       }
 
@@ -643,7 +697,7 @@ export default function BeatSaberGame({
         c.ring.rotation.z += dt * 2.8;
 
         // Cube beat pulse
-        const s = 1 + beatPulse * 0.15;
+        const s = 1 + beatPulse * 0.22;
         c.outerMesh.scale.set(s, s, s);
 
         // Check miss
@@ -655,43 +709,77 @@ export default function BeatSaberGame({
           }
         }
       });
-      cubesRef.current = cubesRef.current.filter((c) => !c.hit && !c.missed);
 
-      // ── Animate Shards ──
-      shardsRef.current.forEach((sh) => {
-        sh.life += dt;
-        sh.mesh.position.addScaledVector(sh.vel, dt);
-        sh.vel.y -= 7.5 * dt; // gravity
-        sh.mesh.rotation.x += sh.rotVel.x * dt;
-        sh.mesh.rotation.y += sh.rotVel.y * dt;
-        const progress = sh.life / sh.maxLife;
-        (sh.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - progress;
-        sh.mesh.scale.setScalar(1 - progress * 0.4);
+      // ── Real-Time Crosshair Lock-On Raycasting ──
+      // Casts ray strictly through the center crosshair (0, 0)
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const centerRay = raycaster.ray;
+
+      const activeCubes = cubesRef.current.filter(
+        (c) => !c.hit && !c.missed && c.group.position.z >= -18 && c.group.position.z <= 2.2
+      );
+
+      let closestCube: CubeItem | null = null;
+      let closestDist = LOCK_ON_RADIUS;
+
+      activeCubes.forEach((c) => {
+        const dist = centerRay.distanceToPoint(c.group.position);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestCube = c;
+        }
       });
-      shardsRef.current = shardsRef.current.filter((sh) => {
+
+      lockedCubeRef.current = closestCube;
+      const isLocked = !!closestCube;
+      const lockType = closestCube ? (closestCube as CubeItem).type : null;
+
+      if (
+        isLocked !== prevLockStateRef.current.isLocked ||
+        lockType !== prevLockStateRef.current.type
+      ) {
+        prevLockStateRef.current = { isLocked, type: lockType };
+        onTargetLock?.(isLocked, lockType);
+      }
+
+      // ── Update Shards & Particle FX ──
+      for (let i = shardsRef.current.length - 1; i >= 0; i--) {
+        const sh = shardsRef.current[i];
+        sh.life += dt;
         if (sh.life >= sh.maxLife) {
           scene.remove(sh.mesh);
           sh.mesh.geometry.dispose();
-          return false;
+          shardsRef.current.splice(i, 1);
+          continue;
         }
-        return true;
-      });
+        sh.vel.y -= 9.8 * dt; // Gravity
+        sh.mesh.position.addScaledVector(sh.vel, dt);
+        sh.mesh.rotation.x += sh.rotVel.x * dt;
+        sh.mesh.rotation.y += sh.rotVel.y * dt;
+        sh.mesh.rotation.z += sh.rotVel.z * dt;
+        const progress = sh.life / sh.maxLife;
+        (sh.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - progress;
+      }
 
-      // ── Animate Shockwaves ──
-      shockwavesRef.current.forEach((sw) => {
+      // ── Update Shockwaves ──
+      for (let i = shockwavesRef.current.length - 1; i >= 0; i--) {
+        const sw = shockwavesRef.current[i];
         sw.life += dt;
-        const s = 1 + sw.life * sw.scaleSpeed;
-        sw.mesh.scale.set(s, s, s);
-        (sw.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - sw.life / sw.maxLife;
-      });
-      shockwavesRef.current = shockwavesRef.current.filter((sw) => {
         if (sw.life >= sw.maxLife) {
           scene.remove(sw.mesh);
           sw.mesh.geometry.dispose();
-          return false;
+          shockwavesRef.current.splice(i, 1);
+          continue;
         }
-        return true;
-      });
+        const s = 1 + sw.life * sw.scaleSpeed;
+        sw.mesh.scale.set(s, s, s);
+        const progress = sw.life / sw.maxLife;
+        (sw.mesh.material as THREE.MeshBasicMaterial).opacity = (1 - progress) * 0.9;
+      }
+
+      // Cleanup finished cubes
+      cubesRef.current = cubesRef.current.filter((c) => !c.hit && !c.missed);
 
       renderer.render(scene, camera);
     };
@@ -701,24 +789,24 @@ export default function BeatSaberGame({
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
       window.removeEventListener("deviceorientation", onOrientation);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onPointerMove);
       window.removeEventListener("mouseup", onPointerUp);
-      window.removeEventListener("resize", onResize);
       dom.removeEventListener("touchstart", onPointerDown);
       dom.removeEventListener("mousedown", onPointerDown);
+
+      cubesRef.current.forEach((c) => scene.remove(c.group));
+      shardsRef.current.forEach((s) => scene.remove(s.mesh));
+      shockwavesRef.current.forEach((s) => scene.remove(s.mesh));
       renderer.dispose();
-      if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
-      cubesRef.current = [];
-      shardsRef.current = [];
-      shockwavesRef.current = [];
     };
-  }, [difficulty, isPlaying, isGyroEnabled, getDiffCfg, spawnCube, handleBurstAtScreenCoord, bpm]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getBeatConfig, onGyroActive, onTargetLock, triggerShootFromCrosshair]);
 
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 w-full h-full overflow-hidden select-none cursor-crosshair"
-      style={{ touchAction: "none" }}
+      className="w-full h-full cursor-crosshair touch-none select-none overflow-hidden"
     />
   );
 }
