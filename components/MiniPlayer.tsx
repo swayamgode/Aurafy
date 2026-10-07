@@ -22,7 +22,7 @@ export default function MiniPlayer() {
           bottom: "100%",
           left: "50%",
           transform: "translateX(-50%)",
-          marginBottom: "-6px",
+          marginBottom: "-10px",
           zIndex: 41,
         }}
       >
@@ -32,7 +32,7 @@ export default function MiniPlayer() {
           loop
           muted
           playsInline
-          className="h-20 w-auto"
+          className="h-14 w-auto"
           style={{
             objectFit: "contain",
             filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.6))",
