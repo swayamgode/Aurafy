@@ -32,6 +32,13 @@ export default function YouTubeAudioPlayer() {
     isBeatSaberOpen,
   } = usePlayer();
 
+  // Always keep a fresh ref to nextTrack so onEnded/onStateChange
+  // never capture a stale closure and replay the same song.
+  const nextTrackRef = useRef(nextTrack);
+  const isBeatSaberOpenRef = useRef(isBeatSaberOpen);
+  useEffect(() => { nextTrackRef.current = nextTrack; }, [nextTrack]);
+  useEffect(() => { isBeatSaberOpenRef.current = isBeatSaberOpen; }, [isBeatSaberOpen]);
+
   // Primary HTML5 audio player (streams from /api/stream or local offline blob)
   // Native HTML5 audio is lock-screen-safe and background-safe on iOS & Android
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -190,10 +197,10 @@ export default function YouTubeAudioPlayer() {
             onStateChange: (event: any) => {
               if (event.data === 0) {
                 window.dispatchEvent(new CustomEvent("aurafy-song-ended"));
-                if (isBeatSaberOpen) {
+                if (isBeatSaberOpenRef.current) {
                   pauseTrack();
                 } else if (isFallbackToIframe.current) {
-                  nextTrack();
+                  nextTrackRef.current();
                 }
               }
             },
@@ -394,10 +401,10 @@ export default function YouTubeAudioPlayer() {
         preload="auto"
         onEnded={() => {
           window.dispatchEvent(new CustomEvent("aurafy-song-ended"));
-          if (isBeatSaberOpen) {
+          if (isBeatSaberOpenRef.current) {
             pauseTrack();
           } else {
-            nextTrack();
+            nextTrackRef.current();
           }
         }}
         onError={() => {

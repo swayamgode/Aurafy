@@ -343,7 +343,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (nextTr) {
       playTrack(nextTr);
     }
-  }, [queue, currentTrack, repeatMode, isShuffle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queue, currentTrack, repeatMode, isShuffle, isBeatSaberOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const prevTrack = useCallback(() => {
     if (queue.length === 0 || !currentTrack) return;

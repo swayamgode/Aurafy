@@ -16,7 +16,6 @@ import {
   Lock,
   Download,
   Check,
-  Glasses,
   Sparkles,
   Sword,
 } from "lucide-react";
@@ -40,9 +39,7 @@ export default function NowPlayingModal() {
     toggleShuffle,
     toggleRepeat,
     toggleLockScreen,
-    openVR,
     openBeatSaber,
-    vrEnvironment,
     queue,
     clearQueue,
     removeFromQueue,
@@ -97,26 +94,6 @@ export default function NowPlayingModal() {
         </span>
 
         <div className="flex items-center space-x-1.5">
-          {/* Beat Saber button */}
-          <button
-            onClick={() => openBeatSaber()}
-            aria-label="Open Beat Saber game"
-            title="Beat Saber Rhythm Game"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-black hover:bg-[#E3E4E6] active:scale-95 transition-all cursor-pointer relative"
-          >
-            <Sword className="w-5 h-5 stroke-[2] text-[#0c6b55]" />
-          </button>
-
-          <button
-            onClick={() => openVR()}
-            aria-label="Open 3D VR Mode"
-            title="Enter 3D Virtual Reality Concert & Lofi"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-black hover:bg-[#E3E4E6] active:scale-95 transition-all cursor-pointer relative"
-          >
-            <Glasses className="w-5 h-5 stroke-[2] text-[#0c6b55]" />
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#0c6b55] animate-pulse" />
-          </button>
-
           <button
             onClick={toggleLockScreen}
             aria-label="Open Lock Screen Mode"
@@ -154,22 +131,6 @@ export default function NowPlayingModal() {
           />
         </div>
 
-        {/* 3D Virtual Reality Portal Trigger */}
-        <div className="w-full mb-6 flex items-center justify-center">
-          <button
-            onClick={() => openVR()}
-            className="group relative flex items-center space-x-2.5 px-5 py-2.5 rounded-full bg-linear-to-r from-neutral-900 via-neutral-800 to-neutral-900 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95 transition-all border border-white/10 cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-[#0c6b55] animate-ping" />
-            <Glasses className="w-4 h-4 text-[#0c6b55]" />
-            <span className="text-xs font-extrabold tracking-wider uppercase">
-              Enter 3D Concert & Lofi VR
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white font-bold ml-1">
-              360°
-            </span>
-          </button>
-        </div>
 
         {/* Track Metadata, Favorite & Download Action */}
         <div className="w-full flex items-center justify-between mb-6">

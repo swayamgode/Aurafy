@@ -14,7 +14,6 @@ import {
   Download,
   Lock,
   ChevronRight,
-  Glasses,
 } from "lucide-react";
 import { usePlayer } from "@/lib/PlayerContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -25,7 +24,7 @@ interface NavigationDrawerProps {
 }
 
 export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerProps) {
-  const { toggleLockScreen, openVR } = usePlayer();
+  const { toggleLockScreen } = usePlayer();
   const { user } = useAuth();
 
   if (!isOpen) return null;
@@ -123,22 +122,6 @@ export default function NavigationDrawer({ isOpen, onClose }: NavigationDrawerPr
 
         {/* Footer Actions */}
         <div className="pt-4 border-t border-[#E3E4E6] space-y-2">
-          <button
-            onClick={() => {
-              onClose();
-              openVR();
-            }}
-            className="w-full py-3 px-4 rounded-2xl bg-linear-to-r from-neutral-900 via-neutral-800 to-neutral-900 text-white text-xs font-bold flex items-center justify-between hover:bg-black transition-colors cursor-pointer border border-white/10 shadow-md"
-          >
-            <div className="flex items-center space-x-2">
-              <Glasses className="w-4 h-4 text-[#0c6b55]" />
-              <span>3D Concert & Lofi VR</span>
-            </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0c6b55] text-white font-extrabold uppercase">
-              360°
-            </span>
-          </button>
-
           <button
             onClick={() => {
               onClose();

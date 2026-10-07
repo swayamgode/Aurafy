@@ -1,7 +1,7 @@
 # TASKS & DECISIONS
 
 ### Current Status
-All phases complete. Phase 25 added: Mobile-First PWA Tech Stack Transformation (`public/manifest.json` standalone mode + `public/sw.js` offline shell service worker + `components/PWAInstallBanner.tsx` 1-tap mobile installation prompt + iOS Safari & Android Chrome safe-area touch optimization).
+Phase 34 complete: Removed 3D Concert VR button from MiniPlayer, NowPlayingModal, and NavigationDrawer. Fixed playlist auto-advance bug where same song repeated — root cause was stale `nextTrack` closure captured in `onEnded`/`onStateChange` callbacks; fixed via `nextTrackRef` in YouTubeAudioPlayer and added `isBeatSaberOpen` to `nextTrack` useCallback deps in PlayerContext.
 
 ## Completed Tasks
 - [x] Phase 1: Initialize Next.js 16 App Router, Tailwind CSS design system tokens (`.ai/DESIGN.md`), and base responsive layout shell.

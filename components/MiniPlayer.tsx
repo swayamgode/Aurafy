@@ -3,13 +3,13 @@
 import React from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Play, Pause, SkipBack, SkipForward, Glasses, Sword } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Sword } from "lucide-react";
 import AudioEqualizer from "@/components/AudioEqualizer";
 import { usePlayer } from "@/lib/PlayerContext";
 
 export default function MiniPlayer() {
   const pathname = usePathname();
-  const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, openNowPlaying, openVR, openBeatSaber } = usePlayer();
+  const { currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, openNowPlaying, openBeatSaber } = usePlayer();
 
   if (pathname === "/login" || !currentTrack) return null;
 
@@ -75,14 +75,6 @@ export default function MiniPlayer() {
           <SkipForward className="w-4 h-4 fill-white" />
         </button>
 
-        <button
-          onClick={() => openVR()}
-          aria-label="Enter 3D VR Mode"
-          title="3D Virtual Reality Concert & Lofi"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[#0c6b55] hover:bg-white/10 active:scale-90 transition-all cursor-pointer ml-0.5"
-        >
-          <Glasses className="w-4 h-4" />
-        </button>
 
         <button
           onClick={() => openBeatSaber()}
